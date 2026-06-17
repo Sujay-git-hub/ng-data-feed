@@ -21,7 +21,7 @@ import sys
 from datetime import datetime, timezone, timedelta
 
 EIA_API_KEY  = os.environ.get('EIA_API_KEY', 'DEMO_KEY')
-OUTPUT_FILE  = 'data/eia_data.json'
+OUTPUT_FILE  = 'eia_data.json'
 HISTORY_MAX  = 12   # Keep last 12 weeks
 
 # 5-year average weekly values (Bcf) — updated from EIA WNGSR
@@ -177,7 +177,6 @@ def main():
     history = sorted(exist_map.values(), key=lambda r: r['period'])[-HISTORY_MAX:]
 
     # Write output
-    os.makedirs('data', exist_ok=True)
     latest = history[-1] if history else {}
     output = {
         'updated':    datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
