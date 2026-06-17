@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 
 CFTC_URL    = 'https://www.cftc.gov/dea/newcot/f_disagg.txt'
 NG_CODE     = '023391'
-OUTPUT_FILE = 'data/cot_data.json'
+OUTPUT_FILE = 'cot_data.json'
 HISTORY_MAX = 12   # Keep last 12 weeks in JSON
 
 
@@ -135,7 +135,6 @@ def main():
     history = history[-HISTORY_MAX:]
 
     # Write output
-    os.makedirs('data', exist_ok=True)
     output = {
         'updated':    datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'source':     'CFTC Disaggregated Futures (023391 NAT GAS ICE LD1)',
