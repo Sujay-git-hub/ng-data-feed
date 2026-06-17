@@ -1,0 +1,1989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MCX Natural Gas — Seasonal Bias Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #161b22 0%, #1c2128 100%); padding: 24px 32px; border-bottom: 1px solid #30363d; }
+  .header h1 { font-size: 22px; font-weight: 700; color: #f0f6fc; }
+  .header p  { font-size: 13px; color: #8b949e; margin-top: 4px; }
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid #30363d; background: #161b22; padding: 0 32px; }
+  .tab { padding: 12px 20px; cursor: pointer; font-size: 13px; color: #8b949e; border-bottom: 2px solid transparent; transition: all .2s; }
+  .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+  .tab:hover { color: #e6edf3; }
+  .content { padding: 24px 32px; }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Monthly Grid */
+  .month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .month-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 14px; transition: transform .15s; cursor: default; }
+  .month-card:hover { transform: translateY(-2px); border-color: #58a6ff44; }
+  .month-card.long  { border-left: 4px solid #3fb950; }
+  .month-card.short { border-left: 4px solid #f85149; }
+  .month-card.neutral { border-left: 4px solid #d29922; }
+  .month-card.caution { border-left: 4px solid #bc8cff; }
+  .mc-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .mc-name { font-size: 18px; font-weight: 700; color: #f0f6fc; }
+  .mc-season { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+  .season-withdrawal { background: #1f3a5f; color: #79c0ff; }
+  .season-injection  { background: #3d2b00; color: #e3b341; }
+  .season-transition { background: #2d1a4a; color: #d2a8ff; }
+  .mc-bias { font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+  .bias-long   { color: #3fb950; }
+  .bias-short  { color: #f85149; }
+  .bias-neutral{ color: #d29922; }
+  .bias-caution{ color: #bc8cff; }
+  .mc-stats { display: flex; gap: 10px; margin-bottom: 6px; }
+  .stat-pill { background: #21262d; border-radius: 4px; padding: 3px 8px; font-size: 11px; }
+  .stat-val  { font-weight: 700; }
+  .mc-driver { font-size: 11px; color: #8b949e; line-height: 1.4; }
+
+  /* Bar chart */
+  .bar-section { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+  .bar-section h3 { font-size: 14px; color: #f0f6fc; margin-bottom: 16px; }
+  .bar-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; }
+  .bar-label { width: 36px; font-size: 12px; color: #8b949e; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 22px; background: #21262d; border-radius: 4px; position: relative; overflow: visible; }
+  .bar-fill { height: 100%; border-radius: 4px; position: absolute; }
+  .bar-text { position: absolute; right: -40px; top: 50%; transform: translateY(-50%); font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .wr-bar { background: #21262d; height: 6px; border-radius: 3px; margin-top: 2px; position: relative; }
+  .wr-fill { height: 100%; border-radius: 3px; position: absolute; background: #58a6ff; }
+
+  /* EIA calendar */
+  .eia-box { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .eia-box h3 { font-size: 14px; color: #f0f6fc; margin-bottom: 12px; }
+  .eia-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .eia-table th { background: #21262d; color: #8b949e; padding: 8px 12px; text-align: left; border-bottom: 1px solid #30363d; }
+  .eia-table td { padding: 8px 12px; border-bottom: 1px solid #21262d; vertical-align: top; }
+  .eia-table tr:hover td { background: #1c2128; }
+
+  /* Trade plan */
+  .trade-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .trade-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 18px; }
+  .trade-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #30363d; }
+  .trade-card.bull h3 { color: #3fb950; }
+  .trade-card.bear h3 { color: #f85149; }
+  .trade-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; padding: 4px 0; }
+  .trade-row .lbl { color: #8b949e; }
+  .trade-row .val { color: #e6edf3; font-weight: 600; }
+
+  /* Quarterly */
+  .q-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+  .q-card { border-radius: 10px; padding: 16px; text-align: center; }
+  .q1 { background: linear-gradient(135deg,#1a3a2a,#1a2a1a); border: 1px solid #3fb95033; }
+  .q2 { background: linear-gradient(135deg,#3a1a1a,#2a1a1a); border: 1px solid #f8514933; }
+  .q3 { background: linear-gradient(135deg,#3a2a1a,#2a2010); border: 1px solid #d2992233; }
+  .q4 { background: linear-gradient(135deg,#1a3a2a,#1a2a3a); border: 1px solid #3fb95066; }
+  .q-label { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #f0f6fc; }
+  .q-ret   { font-size: 28px; font-weight: 900; margin-bottom: 4px; }
+  .q-wr    { font-size: 11px; color: #8b949e; margin-bottom: 8px; }
+  .q-char  { font-size: 11px; color: #8b949e; line-height: 1.4; }
+
+  /* Volatility */
+  .vol-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .vol-box { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 18px; }
+  .vol-box h3 { font-size: 14px; color: #f0f6fc; margin-bottom: 12px; }
+  .vol-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; }
+  .vol-dots { display: flex; gap: 3px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #30363d; }
+  .dot.active { background: #f85149; }
+
+  /* Heatmap */
+  .heatmap-wrap { overflow-x: auto; }
+  .heatmap { border-collapse: collapse; font-size: 11px; min-width: 800px; }
+  .heatmap th { padding: 6px 10px; background: #21262d; color: #8b949e; font-weight: 600; }
+  .heatmap td { padding: 6px 10px; text-align: center; border: 1px solid #21262d; font-weight: 600; }
+
+  .summary-bar { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap; }
+  .sb-item { text-align: center; }
+  .sb-val  { font-size: 20px; font-weight: 800; }
+  .sb-lbl  { font-size: 10px; color: #8b949e; margin-top: 2px; }
+  .divider { width: 1px; background: #30363d; }
+
+  .note { background: #1c2a1c; border: 1px solid #3fb95033; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #8b949e; margin-top: 16px; }
+  .note strong { color: #3fb950; }
+
+  /* Live Data Tabs */
+  .live-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+  .live-header h2 { font-size:16px; font-weight:700; color:#f0f6fc; }
+  .live-badge { display:flex; align-items:center; gap:6px; font-size:11px; color:#8b949e; }
+  .pulse { width:8px; height:8px; border-radius:50%; background:#3fb950; animation:pulse 2s infinite; flex-shrink:0; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:.5;transform:scale(1.3);} }
+  .fetch-btn { background:#21262d; border:1px solid #30363d; color:#58a6ff; padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer; transition:all .2s; }
+  .fetch-btn:hover { background:#30363d; border-color:#58a6ff; }
+  .fetch-btn:disabled { opacity:.5; cursor:not-allowed; }
+  .spinner { display:none; width:14px; height:14px; border:2px solid #30363d; border-top-color:#58a6ff; border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg);} }
+  .loading-row { display:flex; align-items:center; gap:10px; padding:20px; color:#8b949e; font-size:13px; }
+
+  /* EIA Live cards */
+  .eia-live-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  .eia-live-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px; position:relative; overflow:hidden; }
+  .eia-live-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+  .eia-live-card.bull::before { background:linear-gradient(90deg,#3fb950,#79c0ff); }
+  .eia-live-card.bear::before { background:linear-gradient(90deg,#f85149,#e3b341); }
+  .eia-live-card.neutral::before { background:linear-gradient(90deg,#d29922,#bc8cff); }
+  .elc-date { font-size:10px; color:#8b949e; margin-bottom:6px; }
+  .elc-change { font-size:26px; font-weight:900; margin-bottom:4px; }
+  .elc-label { font-size:10px; color:#8b949e; margin-bottom:8px; }
+  .elc-vs { display:flex; flex-direction:column; gap:3px; }
+  .elc-vs-row { display:flex; justify-content:space-between; font-size:11px; padding:2px 0; border-bottom:1px solid #21262d; }
+  .elc-signal { margin-top:8px; font-size:11px; font-weight:700; padding:4px 8px; border-radius:4px; text-align:center; }
+  .elc-signal.bull { background:#0d2b0d; color:#3fb950; }
+  .elc-signal.bear { background:#2d1010; color:#f85149; }
+  .elc-signal.neutral { background:#2a2010; color:#d29922; }
+
+  /* EIA analysis box */
+  .eia-analysis { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:18px; margin-bottom:16px; }
+  .eia-analysis h3 { font-size:14px; color:#f0f6fc; margin-bottom:14px; }
+  .analysis-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .analysis-item { background:#21262d; border-radius:8px; padding:12px; }
+  .analysis-item .ai-label { font-size:10px; color:#8b949e; margin-bottom:4px; text-transform:uppercase; letter-spacing:.5px; }
+  .analysis-item .ai-val { font-size:18px; font-weight:800; }
+  .analysis-item .ai-sub { font-size:11px; color:#8b949e; margin-top:3px; }
+
+  /* COT Live */
+  .cot-cards { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:20px; }
+  .cot-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; }
+  .cot-card-title { font-size:11px; color:#8b949e; text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; }
+  .cot-net { font-size:28px; font-weight:900; margin-bottom:2px; }
+  .cot-chg { font-size:12px; margin-bottom:8px; }
+  .cot-bar-wrap { height:6px; background:#21262d; border-radius:3px; overflow:hidden; margin-bottom:10px; }
+  .cot-bar-fill { height:100%; border-radius:3px; transition:width .5s; }
+  .cot-meta { font-size:10px; color:#8b949e; line-height:1.6; }
+
+  /* COT history table */
+  .cot-history { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:18px; margin-bottom:16px; }
+  .cot-history h3 { font-size:14px; color:#f0f6fc; margin-bottom:14px; }
+  .cot-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .cot-table th { background:#21262d; color:#8b949e; padding:8px 10px; text-align:center; border-bottom:1px solid #30363d; font-size:11px; }
+  .cot-table td { padding:8px 10px; border-bottom:1px solid #21262d; text-align:center; }
+  .cot-table tr:hover td { background:#1c2128; }
+  .cot-table .wk-label { text-align:left; font-weight:600; color:#f0f6fc; }
+
+  /* COT sentiment meter */
+  .sentiment-meter { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:18px; margin-bottom:16px; }
+  .sentiment-meter h3 { font-size:14px; color:#f0f6fc; margin-bottom:14px; }
+  .meter-track { height:20px; background:linear-gradient(90deg,#3fb950,#d29922,#f85149); border-radius:10px; position:relative; margin-bottom:12px; }
+  .meter-needle { position:absolute; top:-4px; width:4px; height:28px; background:#f0f6fc; border-radius:2px; transform:translateX(-50%); transition:left .5s; box-shadow:0 0 8px #f0f6fc88; }
+  .meter-labels { display:flex; justify-content:space-between; font-size:10px; color:#8b949e; }
+
+  /* error/empty states */
+  .data-error { background:#2d1010; border:1px solid #f8514933; border-radius:8px; padding:14px 16px; font-size:12px; color:#f85149; }
+  .data-error strong { display:block; margin-bottom:4px; }
+  .next-fetch { font-size:10px; color:#8b949e; margin-top:4px; }
+
+  /* auto-schedule note */
+  .schedule-box { background:#1a1f2e; border:1px solid #58a6ff33; border-radius:8px; padding:12px 16px; font-size:12px; color:#8b949e; margin-bottom:16px; display:flex; gap:10px; align-items:flex-start; }
+  .schedule-box .icon { font-size:16px; flex-shrink:0; margin-top:1px; }
+  .schedule-box strong { color:#58a6ff; }
+
+  /* ── COT TAB ── */
+  .cot-fetch-bar { display:flex; align-items:center; justify-content:space-between; background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px 20px; margin-bottom:18px; }
+  .cot-fetch-bar .cft-left h3 { font-size:14px; font-weight:700; color:#f0f6fc; }
+  .cot-fetch-bar .cft-left p  { font-size:11px; color:#8b949e; margin-top:2px; }
+  .cot-fetch-bar .cft-right   { display:flex; align-items:center; gap:12px; }
+  .cot-btn { background:#21262d; border:1px solid #30363d; border-radius:6px; color:#58a6ff; font-size:12px; font-weight:600; padding:7px 16px; cursor:pointer; transition:all .15s; }
+  .cot-btn:hover { border-color:#58a6ff; background:#1a2332; }
+  .cot-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .cot-status { font-size:11px; color:#8b949e; }
+  .cot-status.ok  { color:#3fb950; }
+  .cot-status.err { color:#f85149; }
+
+  .cot-metrics { display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:18px; }
+  .cot-metric  { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px; }
+  .cot-metric .cm-lbl { font-size:10px; color:#8b949e; text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+  .cot-metric .cm-val { font-size:22px; font-weight:800; line-height:1; }
+  .cot-metric .cm-sub { font-size:10px; color:#8b949e; margin-top:5px; }
+  .cot-metric.pos .cm-val { color:#3fb950; }
+  .cot-metric.neg .cm-val { color:#f85149; }
+  .cot-metric.neu .cm-val { color:#58a6ff; }
+
+  .cot-two { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  .cot-box  { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:18px; }
+  .cot-box h3 { font-size:13px; font-weight:700; color:#f0f6fc; margin-bottom:14px; padding-bottom:8px; border-bottom:1px solid #21262d; }
+
+  .cot-bar-row   { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .cot-bar-lbl   { font-size:11px; color:#8b949e; width:108px; flex-shrink:0; }
+  .cot-bar-track { flex:1; height:18px; background:#21262d; border-radius:3px; overflow:hidden; display:flex; }
+  .cot-bar-l     { background:#3fb950; height:100%; opacity:.85; transition:width .5s ease; }
+  .cot-bar-s     { background:#f85149; height:100%; opacity:.85; transition:width .5s ease; }
+  .cot-bar-nums  { font-size:10px; color:#8b949e; width:100px; text-align:right; flex-shrink:0; }
+
+  .cot-signal-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px; }
+  .cot-signal-card { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:14px 16px; }
+  .cot-signal-card .cs-title { font-size:12px; font-weight:700; color:#e6edf3; margin-bottom:6px; display:flex; align-items:center; gap:8px; }
+  .cot-signal-card .cs-body  { font-size:11px; color:#8b949e; line-height:1.6; }
+  .cot-tag { font-size:9px; padding:2px 7px; border-radius:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .cot-tag.bull { background:#1c2a1c; color:#3fb950; }
+  .cot-tag.bear { background:#2a1a1a; color:#f85149; }
+  .cot-tag.neut { background:#21262d; color:#d29922; }
+
+  /* History table */
+  .cot-hist-wrap { overflow-x:auto; }
+  .cot-hist-tbl  { width:100%; border-collapse:collapse; font-size:11px; min-width:900px; }
+  .cot-hist-tbl th { background:#21262d; color:#8b949e; padding:8px 10px; text-align:center; border-bottom:1px solid #30363d; font-weight:600; white-space:nowrap; }
+  .cot-hist-tbl th.lh { text-align:left; }
+  .cot-hist-tbl td { padding:7px 10px; border-bottom:1px solid #21262d; text-align:center; color:#e6edf3; }
+  .cot-hist-tbl td.lh { text-align:left; font-weight:600; color:#f0f6fc; }
+  .cot-hist-tbl tr:hover td { background:#1c2128; }
+  .cot-hist-tbl .pos { color:#3fb950; font-weight:700; }
+  .cot-hist-tbl .neg { color:#f85149; font-weight:700; }
+  .cot-hist-tbl .pos-bg { background:#0d2b1a; }
+  .cot-hist-tbl .neg-bg { background:#2b0d0d; }
+
+  /* Canvas charts */
+  .cot-chart-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:18px; }
+  .cot-chart-box  { background:#161b22; border:1px solid #30363d; border-radius:10px; padding:16px; }
+  .cot-chart-box h3 { font-size:12px; font-weight:700; color:#8b949e; margin-bottom:12px; text-transform:uppercase; letter-spacing:.06em; }
+  .cot-chart-box .chart-wrap { position:relative; height:160px; }
+  .cot-chart-box canvas { width:100% !important; }
+  .cot-net-wrap { position:relative; height:180px; }
+
+  .cot-empty { text-align:center; padding:40px; color:#8b949e; font-size:13px; }
+  .cot-empty .ce-icon { font-size:32px; margin-bottom:10px; opacity:.4; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⛽ MCX Natural Gas — Seasonal Bias Dashboard</h1>
+  <p>12-month seasonal analysis · YoY patterns · Trade bias framework · EIA storage cycle · Based on 10+ years NYMEX NG data (MCX tracks with ~1–2% basis)</p>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('monthly',this)">Monthly Bias</div>
+  <div class="tab" onclick="showTab('quarterly',this)">Quarterly View</div>
+  <div class="tab" onclick="showTab('charts',this)">Bar Charts</div>
+  <div class="tab" onclick="showTab('eia',this)">EIA Storage Cycle</div>
+  <div class="tab" onclick="showTab('tradeplan',this)">Trade Plans</div>
+  <div class="tab" onclick="showTab('rules',this)">System Rules</div>
+  <div class="tab" onclick="showTab('storage',this)">EIA Storage Data</div>
+  <div class="tab" onclick="showTab('reports',this)">Market Reports Guide</div>
+  <div class="tab" onclick="showTab('cot',this)">COT Positioning</div>
+  <div class="tab" onclick="showTab('liveeia',this)">📡 Live EIA</div>
+</div>
+
+<!-- ===================== MONTHLY ===================== -->
+<div id="monthly" class="section content active">
+  <div class="summary-bar">
+    <div class="sb-item"><div class="sb-val" style="color:#3fb950">6</div><div class="sb-lbl">Bullish Months</div></div>
+    <div class="divider"></div>
+    <div class="sb-item"><div class="sb-val" style="color:#f85149">4</div><div class="sb-lbl">Bearish Months</div></div>
+    <div class="divider"></div>
+    <div class="sb-item"><div class="sb-val" style="color:#d29922">2</div><div class="sb-lbl">Neutral Months</div></div>
+    <div class="divider"></div>
+    <div class="sb-item"><div class="sb-val" style="color:#f0f6fc">Oct–Jan</div><div class="sb-lbl">Strongest Bull Window</div></div>
+    <div class="divider"></div>
+    <div class="sb-item"><div class="sb-val" style="color:#f0f6fc">Mar–Aug</div><div class="sb-lbl">Bear/Injection Window</div></div>
+    <div class="divider"></div>
+    <div class="sb-item"><div class="sb-val" style="color:#58a6ff">+4.0%</div><div class="sb-lbl">Best Qtr Avg (Q4)</div></div>
+  </div>
+
+  <div class="month-grid" id="monthGrid"></div>
+
+  <div class="note">
+    <strong>📌 How to use:</strong> Each card shows the statistical bias built over 10+ years of data. 
+    <strong>Win Rate (WR)</strong> = % of trading days that closed positive in that month. 
+    <strong>Avg Ret%</strong> = average monthly return. Use these as a FILTER — only take longs in Long months, only shorts in Short months. In Neutral months, be more selective and reduce size.
+  </div>
+</div>
+
+<!-- ===================== QUARTERLY ===================== -->
+<div id="quarterly" class="section content">
+  <div class="q-grid">
+    <div class="q-card q1">
+      <div class="q-label">Q1 · Jan–Mar</div>
+      <div class="q-ret" style="color:#d29922">+1.8%</div>
+      <div class="q-wr">Win Rate: 52% · Volatility: HIGH</div>
+      <div class="q-char">Mixed quarter. Jan is bullish (peak cold), but Feb–Mar typically reverse. Trade Jan long, fade Feb–Mar rallies. Most volatile quarter due to weather extremes.</div>
+    </div>
+    <div class="q-card q2">
+      <div class="q-label">Q2 · Apr–Jun</div>
+      <div class="q-ret" style="color:#f85149">−1.5%</div>
+      <div class="q-wr">Win Rate: 47% · Volatility: LOW</div>
+      <div class="q-char">Injection season begins. Bears dominate Apr–May. Jun can stabilize slightly due to early cooling demand. Sell rallies strategy works best. Avoid buying dips.</div>
+    </div>
+    <div class="q-card q3">
+      <div class="q-label">Q3 · Jul–Sep</div>
+      <div class="q-ret" style="color:#d29922">−0.7%</div>
+      <div class="q-wr">Win Rate: 47% · Volatility: MEDIUM</div>
+      <div class="q-char">Peak injection months Jul–Aug = short bias. Sep begins the reversal as storage nears capacity. Watch for the "Sep bottom" setup — often the best long entry of the year.</div>
+    </div>
+    <div class="q-card q4">
+      <div class="q-label">Q4 · Oct–Dec</div>
+      <div class="q-ret" style="color:#3fb950">+4.0%</div>
+      <div class="q-wr">Win Rate: 58% · Volatility: HIGH</div>
+      <div class="q-char">BEST quarter of the year consistently. Withdrawal season onset + cold weather = explosive moves. Oct often the highest-return month. Buy dips aggressively Oct–Dec.</div>
+    </div>
+  </div>
+
+  <div class="bar-section">
+    <h3>Quarterly Average Monthly Return (%)</h3>
+    <div style="display:flex; gap:10px; align-items:flex-end; height:120px; padding: 0 20px;">
+      <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+        <div style="background:#d29922; width:100%; height:55px; border-radius:4px 4px 0 0;"></div>
+        <div style="font-size:11px; color:#d29922; margin-top:4px; font-weight:700;">+1.8%</div>
+        <div style="font-size:10px; color:#8b949e;">Q1</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; flex:1; justify-content:flex-end;">
+        <div style="background:#f85149; width:100%; height:47px; border-radius:4px 4px 0 0; margin-top:auto;"></div>
+        <div style="font-size:11px; color:#f85149; margin-top:4px; font-weight:700;">−1.5%</div>
+        <div style="font-size:10px; color:#8b949e;">Q2</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; flex:1; justify-content:flex-end;">
+        <div style="background:#f85149; width:100%; height:22px; border-radius:4px 4px 0 0; margin-top:auto;"></div>
+        <div style="font-size:11px; color:#f85149; margin-top:4px; font-weight:700;">−0.7%</div>
+        <div style="font-size:10px; color:#8b949e;">Q3</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+        <div style="background:#3fb950; width:100%; height:100%; border-radius:4px 4px 0 0;"></div>
+        <div style="font-size:11px; color:#3fb950; margin-top:4px; font-weight:700;">+4.0%</div>
+        <div style="font-size:10px; color:#8b949e;">Q4</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Key insight:</strong> Q4 (Oct–Dec) is the only quarter with consistently positive returns AND a win rate above 55%. Size up in Q4. Reduce size in Q2–Q3 (injection season). Q1 requires selectivity — only trade Jan long; skip or fade Feb–Mar.
+  </div>
+</div>
+
+<!-- ===================== BAR CHARTS ===================== -->
+<div id="charts" class="section content">
+  <div class="bar-section">
+    <h3>Average Monthly Return % (2014–2026)</h3>
+    <div id="retBars"></div>
+  </div>
+  <div class="bar-section" style="margin-top:16px;">
+    <h3>Monthly Win Rate % (% of days closing positive)</h3>
+    <div id="wrBars"></div>
+  </div>
+  <div class="bar-section" style="margin-top:16px;">
+    <h3>Average Daily Volatility % by Month</h3>
+    <div id="volBars"></div>
+  </div>
+</div>
+
+<!-- ===================== EIA ===================== -->
+<div id="eia" class="section content">
+  <div class="eia-box">
+    <h3>📦 EIA Natural Gas Storage Cycle — The Core Seasonal Engine</h3>
+    <table class="eia-table">
+      <tr><th>Season</th><th>Months</th><th>Storage Action</th><th>Market Implication</th><th>Trade Bias</th></tr>
+      <tr>
+        <td><strong style="color:#f85149">Injection Season</strong></td>
+        <td>Apr – Oct</td>
+        <td>Gas injected into underground storage. Weekly EIA report shows +40 to +100 Bcf/week builds.</td>
+        <td>More supply going into storage = bearish price pressure. Large builds vs 5yr avg = down move.</td>
+        <td style="color:#f85149;font-weight:700;">SHORT BIAS · Sell rallies · Avoid longs except Sep bottom</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#3fb950">Withdrawal Season</strong></td>
+        <td>Nov – Mar</td>
+        <td>Gas withdrawn from storage. Weekly EIA shows −50 to −250 Bcf/week draws.</td>
+        <td>Storage depletion = bullish. Larger draws vs 5yr avg = spike up. Cold snaps = volatile breakouts.</td>
+        <td style="color:#3fb950;font-weight:700;">LONG BIAS · Buy dips · Hold swing longs</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="eia-box">
+    <h3>📅 Weekly EIA Report Trading Framework (Every Thursday)</h3>
+    <table class="eia-table">
+      <tr><th>Report vs Estimate</th><th>Season</th><th>Expected Reaction</th><th>Trading Action</th></tr>
+      <tr>
+        <td>Injection LARGER than 5yr avg</td>
+        <td>Apr–Oct</td>
+        <td>Bearish confirmation. Price drops.</td>
+        <td style="color:#f85149">Short on close above open. Target: prior support.</td>
+      </tr>
+      <tr>
+        <td>Injection SMALLER than 5yr avg</td>
+        <td>Apr–Oct</td>
+        <td>Bullish surprise. Short covering rally.</td>
+        <td style="color:#3fb950">Exit shorts. Can go long on bounce.</td>
+      </tr>
+      <tr>
+        <td>Withdrawal LARGER than 5yr avg</td>
+        <td>Nov–Mar</td>
+        <td>Bullish confirmation. Price spikes.</td>
+        <td style="color:#3fb950">Long on pullback after initial spike. Add to longs.</td>
+      </tr>
+      <tr>
+        <td>Withdrawal SMALLER than 5yr avg</td>
+        <td>Nov–Mar</td>
+        <td>Bearish surprise. Longs exit.</td>
+        <td style="color:#f85149">Exit longs. Wait for reload lower.</td>
+      </tr>
+      <tr>
+        <td>Storage at 5yr HIGH (Oct end)</td>
+        <td>Oct transition</td>
+        <td>Large storage = weak winter setup. Bears pile in.</td>
+        <td style="color:#f85149">Reduce long size in Q4 if storage above 5yr avg.</td>
+      </tr>
+      <tr>
+        <td>Storage at 5yr LOW (Oct end)</td>
+        <td>Oct transition</td>
+        <td>Tight supply going into winter. Bulls excited.</td>
+        <td style="color:#3fb950">Aggressive long Q4 if storage below 5yr avg heading in.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="eia-box">
+    <h3>🌡️ Month-by-Month Key Events</h3>
+    <table class="eia-table">
+      <tr><th>Month</th><th>Key Event / Catalyst</th><th>Direction Risk</th></tr>
+      <tr><td>January</td><td>Arctic blasts (Polar Vortex events) — can cause 20–40% price spikes in 1 week</td><td style="color:#3fb950">UP (extreme events)</td></tr>
+      <tr><td>February</td><td>Late-winter demand softens; often gives back Jan gains</td><td style="color:#f85149">DOWN</td></tr>
+      <tr><td>March</td><td>Injection season begins. Storage facilities start accepting gas. Bears take over.</td><td style="color:#f85149">DOWN</td></tr>
+      <tr><td>April</td><td>Full injection mode. Warm weather reduces demand. Most consistent short month.</td><td style="color:#f85149">DOWN</td></tr>
+      <tr><td>May</td><td>Shoulder season. Low volatility. Range-bound. Skip or range trade.</td><td style="color:#d29922">NEUTRAL</td></tr>
+      <tr><td>June</td><td>AC demand begins. Slight bullish uptick due to power generation demand.</td><td style="color:#d29922">SLIGHT UP</td></tr>
+      <tr><td>July</td><td>Peak injection + peak AC season. Storage build race. Short-biased.</td><td style="color:#f85149">DOWN</td></tr>
+      <tr><td>August</td><td>Continuation of July. EIA weekly builds dominate sentiment.</td><td style="color:#f85149">DOWN</td></tr>
+      <tr><td>September</td><td>Storage nears capacity. "Sep bottom" — injection slows, bulls start accumulating.</td><td style="color:#3fb950">BOTTOM / REVERSAL</td></tr>
+      <tr><td>October</td><td>Withdrawal season begins. First cold snap = explosive up. Highest avg return month.</td><td style="color:#3fb950">UP STRONGLY</td></tr>
+      <tr><td>November</td><td>Heating demand peaks. Strong uptrend continuation.</td><td style="color:#3fb950">UP</td></tr>
+      <tr><td>December</td><td>Winter peak. Volatile. Upside if cold; reversal possible if warm winter.</td><td style="color:#3fb950">UP (weather dependent)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== TRADE PLANS ===================== -->
+<div id="tradeplan" class="section content">
+  <div class="trade-cards">
+    <div class="trade-card bull">
+      <h3>🟢 BULLISH SEASONAL TRADE (Oct–Jan Window)</h3>
+      <div class="trade-row"><span class="lbl">Months</span><span class="val">Oct 1 → Jan 31</span></div>
+      <div class="trade-row"><span class="lbl">Entry Trigger</span><span class="val">First pullback after Oct 1 + price > 20 EMA</span></div>
+      <div class="trade-row"><span class="lbl">Confirmation</span><span class="val">EIA draw > 5yr avg OR cold forecast</span></div>
+      <div class="trade-row"><span class="lbl">Stop Loss</span><span class="val">Below prior swing low or 2× ATR</span></div>
+      <div class="trade-row"><span class="lbl">Target 1</span><span class="val">+5–8% (prior resistance)</span></div>
+      <div class="trade-row"><span class="lbl">Target 2</span><span class="val">+12–18% (trend extension)</span></div>
+      <div class="trade-row"><span class="lbl">Max Lots</span><span class="val">2 lots (3 on breakout)</span></div>
+      <div class="trade-row"><span class="lbl">Avg Win Rate (hist)</span><span class="val" style="color:#3fb950">58–62%</span></div>
+      <div class="trade-row"><span class="lbl">Exit Rule</span><span class="val">Feb 1 or 2× ATR trailing stop</span></div>
+    </div>
+    <div class="trade-card bear">
+      <h3>🔴 BEARISH SEASONAL TRADE (Apr–Aug Window)</h3>
+      <div class="trade-row"><span class="lbl">Months</span><span class="val">Apr 1 → Aug 31</span></div>
+      <div class="trade-row"><span class="lbl">Entry Trigger</span><span class="val">Bounce into 20 EMA resistance + price < VWAP</span></div>
+      <div class="trade-row"><span class="lbl">Confirmation</span><span class="val">EIA injection > 5yr avg OR warm forecast</span></div>
+      <div class="trade-row"><span class="lbl">Stop Loss</span><span class="val">Above prior swing high or 2× ATR</span></div>
+      <div class="trade-row"><span class="lbl">Target 1</span><span class="val">−4–6% (prior support)</span></div>
+      <div class="trade-row"><span class="lbl">Target 2</span><span class="val">−8–12% (cycle low)</span></div>
+      <div class="trade-row"><span class="lbl">Max Lots</span><span class="val">2 lots</span></div>
+      <div class="trade-row"><span class="lbl">Avg Win Rate (hist)</span><span class="val" style="color:#f85149">56–60%</span></div>
+      <div class="trade-row"><span class="lbl">Exit Rule</span><span class="val">Sep 1 or trailing stop hit</span></div>
+    </div>
+    <div class="trade-card bull">
+      <h3>🟡 SEPTEMBER BOTTOM REVERSAL</h3>
+      <div class="trade-row"><span class="lbl">Window</span><span class="val">Sep 10 – Oct 15</span></div>
+      <div class="trade-row"><span class="lbl">Setup</span><span class="val">Price at/below Aug low + RSI < 35 + storage near max</span></div>
+      <div class="trade-row"><span class="lbl">Entry</span><span class="val">Bullish daily candle reversal (hammer / engulf)</span></div>
+      <div class="trade-row"><span class="lbl">Stop</span><span class="val">Below Sep low (tight stop)</span></div>
+      <div class="trade-row"><span class="lbl">Target</span><span class="val">+15–25% into Nov</span></div>
+      <div class="trade-row"><span class="lbl">Logic</span><span class="val">Storage hits capacity → injection slows → bulls accumulate ahead of winter</span></div>
+      <div class="trade-row"><span class="lbl">Best years</span><span class="val" style="color:#3fb950">Works ~65% of years</span></div>
+    </div>
+    <div class="trade-card bear">
+      <h3>🟣 FEB–MAR FADE (Post-Winter Reversal)</h3>
+      <div class="trade-row"><span class="lbl">Window</span><span class="val">Feb 1 – Mar 31</span></div>
+      <div class="trade-row"><span class="lbl">Setup</span><span class="val">Price overbought from Jan spike (RSI > 65)</span></div>
+      <div class="trade-row"><span class="lbl">Entry</span><span class="val">Break below 10 EMA on daily chart</span></div>
+      <div class="trade-row"><span class="lbl">Stop</span><span class="val">Above Jan high</span></div>
+      <div class="trade-row"><span class="lbl">Target</span><span class="val">−6–10% by end of March</span></div>
+      <div class="trade-row"><span class="lbl">Logic</span><span class="val">Winter peak passes; demand fades; injection season approaching</span></div>
+      <div class="trade-row"><span class="lbl">Best years</span><span class="val" style="color:#3fb950">Works ~60% of years</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== SYSTEM RULES ===================== -->
+<div id="rules" class="section content">
+  <div style="display:grid; grid-template-columns:1fr; gap:16px; max-width:800px;">
+    <div class="eia-box">
+      <h3>📋 Seasonal Bias Filter Rules (Apply to ALL systems)</h3>
+      <table class="eia-table">
+        <tr><th>#</th><th>Rule</th><th>Months</th></tr>
+        <tr><td>1</td><td style="color:#3fb950">LONG ONLY month — only take long signals; reject short signals</td><td>Oct, Nov, Dec, Jan</td></tr>
+        <tr><td>2</td><td style="color:#f85149">SHORT ONLY month — only take short signals; reject long signals</td><td>Mar, Apr, Jul, Aug</td></tr>
+        <tr><td>3</td><td style="color:#d29922">NEUTRAL month — take both but reduce to 1 lot; tighten stops by 20%</td><td>Feb, May, Jun, Sep</td></tr>
+        <tr><td>4</td><td>NEVER fight the seasonal in clear months — if in Oct and your system says short, SKIP it</td><td>All</td></tr>
+        <tr><td>5</td><td>Check EIA storage vs 5yr avg before entry — confirms or negates seasonal bias</td><td>All</td></tr>
+        <tr><td>6</td><td>Cold snap weather forecast override — bullish regardless of month if polar vortex expected</td><td>Nov–Feb</td></tr>
+        <tr><td>7</td><td>Max 2 lots any time; 3 lots only Oct–Jan with trend confirmation</td><td>All</td></tr>
+      </table>
+    </div>
+
+    <div class="eia-box">
+      <h3>🎯 Bias Score per Month (−10 to +10)</h3>
+      <table class="eia-table">
+        <tr><th>Month</th><th>Score</th><th>Action</th><th>Lot Size</th></tr>
+        <tr><td>January</td><td style="color:#3fb950">+7</td><td>Longs only</td><td>Full (2L)</td></tr>
+        <tr><td>February</td><td style="color:#d29922">−2</td><td>Cautious; wait for clear signal</td><td>Half (1L)</td></tr>
+        <tr><td>March</td><td style="color:#f85149">−6</td><td>Shorts only</td><td>Full (2L)</td></tr>
+        <tr><td>April</td><td style="color:#f85149">−5</td><td>Shorts only</td><td>Full (2L)</td></tr>
+        <tr><td>May</td><td style="color:#d29922">+1</td><td>Neutral; range trade</td><td>Half (1L)</td></tr>
+        <tr><td>June</td><td style="color:#d29922">+2</td><td>Slight long lean</td><td>Half–Full</td></tr>
+        <tr><td>July</td><td style="color:#f85149">−4</td><td>Shorts only</td><td>Full (2L)</td></tr>
+        <tr><td>August</td><td style="color:#f85149">−4</td><td>Shorts only</td><td>Full (2L)</td></tr>
+        <tr><td>September</td><td style="color:#d29922">+3</td><td>Watch for bottom reversal; cautious long</td><td>Half→Full</td></tr>
+        <tr><td>October</td><td style="color:#3fb950">+9</td><td>Longs aggressively</td><td>Full (2–3L)</td></tr>
+        <tr><td>November</td><td style="color:#3fb950">+7</td><td>Longs only</td><td>Full (2L)</td></tr>
+        <tr><td>December</td><td style="color:#3fb950">+6</td><td>Longs; watch for weather</td><td>Full (2L)</td></tr>
+      </table>
+    </div>
+
+    <div class="note">
+      <strong>⚡ MCX-specific note:</strong> MCX NG contract tracks NYMEX with ~1–2% basis difference and a slight lag (MCX closes at 11:30 PM IST, NYMEX runs till 5:00 AM IST). The EIA storage report (Thu 8 PM IST) creates the biggest intraweek move — align your EIA-week trades with the seasonal bias for highest-probability setups. In LONG months, EIA builds don't hurt much; in SHORT months, EIA injections confirm and accelerate the move.
+    </div>
+  </div>
+</div>
+
+<!-- ===================== EIA STORAGE DATA ===================== -->
+<div id="storage" class="section content">
+
+  <div class="eia-box">
+    <h3>📊 EIA Working Gas in Storage — End-of-Month Levels (Bcf) · Lower 48 States</h3>
+    <p style="font-size:12px;color:#8b949e;margin-bottom:14px;">Source: EIA Weekly Natural Gas Storage Report (ir.eia.gov/ngs). 5-yr avg = average of 2020–2024. 3-yr avg = average of 2022–2024. Bullish = current below avg (tight supply). Bearish = current above avg (ample supply).</p>
+    <div class="heatmap-wrap">
+    <table class="heatmap" id="storageTable">
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>2022 (Bcf)</th>
+          <th>2023 (Bcf)</th>
+          <th>2024 (Bcf)</th>
+          <th>3-Yr Avg</th>
+          <th>5-Yr Avg<br><span style="font-weight:400;color:#8b949e">(2020–2024)</span></th>
+          <th>Flow Type</th>
+          <th>Typical Weekly<br>Change</th>
+          <th>Mkt Signal</th>
+        </tr>
+      </thead>
+      <tbody id="storageBody"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="eia-box" style="margin-top:16px;">
+    <h3>📉 How Storage Level vs 5-Yr Avg Drives Price — The Signal Framework</h3>
+    <table class="eia-table">
+      <tr><th>Storage vs 5-Yr Avg</th><th>Season</th><th>Market Implication</th><th>Trade Signal</th><th>Magnitude</th></tr>
+      <tr>
+        <td style="color:#f85149;font-weight:700">200+ Bcf ABOVE avg</td><td>Any</td>
+        <td>Ample supply cushion; market comfortable; bulls need cold/disruption</td>
+        <td style="color:#f85149">Strong Bear</td><td>Large down pressure</td>
+      </tr>
+      <tr>
+        <td style="color:#f85149;font-weight:700">100–200 Bcf above avg</td><td>Any</td>
+        <td>Supply comfortable; injection season = drag; withdrawal = limited upside</td>
+        <td style="color:#f85149">Mild Bear</td><td>Moderate down pressure</td>
+      </tr>
+      <tr>
+        <td style="color:#d29922;font-weight:700">±100 Bcf of avg</td><td>Any</td>
+        <td>Balanced market; technicals + weather drive price more than fundamentals</td>
+        <td style="color:#d29922">Neutral</td><td>Weather / technicals dominate</td>
+      </tr>
+      <tr>
+        <td style="color:#3fb950;font-weight:700">100–200 Bcf BELOW avg</td><td>Any</td>
+        <td>Tight supply; any cold/disruption amplified; seasonal longs have tailwind</td>
+        <td style="color:#3fb950">Mild Bull</td><td>Moderate up pressure</td>
+      </tr>
+      <tr>
+        <td style="color:#3fb950;font-weight:700">200+ Bcf below avg</td><td>Withdrawal</td>
+        <td>Critical shortage risk; price spikes common; explosive upside potential</td>
+        <td style="color:#3fb950">Strong Bull</td><td>Very large up pressure</td>
+      </tr>
+      <tr>
+        <td style="color:#3fb950;font-weight:700">Near MAX capacity (Oct)</td><td>Injection→Withdrawal</td>
+        <td>Storage maxed out → injections stop early → bearish heading into winter</td>
+        <td style="color:#f85149">Counter-intuitive Bear</td><td>Oct/Nov downside risk</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="eia-box" style="margin-top:16px;">
+    <h3>🗓️ Weekly EIA Report — How to Read the Number (Every Thursday 8 PM IST)</h3>
+    <table class="eia-table">
+      <tr><th>Data Point</th><th>What It Means</th><th>How to Use It</th></tr>
+      <tr><td><strong>Net Change (Bcf)</strong></td><td>Injection (+) or Withdrawal (−) for the week</td><td>Compare to estimate (Reuters/Bloomberg consensus). Beat = bullish. Miss = bearish.</td></tr>
+      <tr><td><strong>vs Year Ago</strong></td><td>Same week last year's storage level</td><td>Storage deficit to last year = bullish. Surplus to last year = bearish.</td></tr>
+      <tr><td><strong>vs 5-Year Avg</strong></td><td>Same week 5-yr historical average</td><td>The most-watched number. Below avg = structurally bullish. Above = bearish.</td></tr>
+      <tr><td><strong>Within Range</strong></td><td>Is current level inside 5-yr min/max band?</td><td>Outside range (above max or below min) = extreme signal; positions get squeezed hard.</td></tr>
+      <tr><td><strong>Regional splits</strong></td><td>East / Midwest / South Central / Mountain / Pacific</td><td>Cold-heavy east region withdrawal signals more impact on Henry Hub than western regions.</td></tr>
+    </table>
+    <div class="note" style="margin-top:12px;">
+      <strong>MCX Impact:</strong> EIA report releases at <strong>8:00 PM IST on Thursdays</strong>. MCX NG trades until 11:30 PM IST — you get a full 3.5 hours of price action post-EIA on the same day. The 8–9 PM IST window is typically the highest-volume, highest-volatility window of the week for MCX NG. Align your EIA trade direction with the seasonal bias for maximum probability.
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MARKET REPORTS GUIDE ===================== -->
+<div id="reports" class="section content">
+
+  <div class="eia-box">
+    <h3>📋 Natural Gas "Short Interest Equivalents" — All Key Reports Traders Monitor</h3>
+    <p style="font-size:12px;color:#8b949e;margin-bottom:14px;">Just like equities have Short Interest Reports and SHO forms, NG has its own set of positioning, inventory, and flow reports. These are your market intelligence toolkit — all publicly free.</p>
+    <table class="eia-table">
+      <tr>
+        <th style="width:22%">Report Name</th>
+        <th style="width:12%">Publisher</th>
+        <th style="width:10%">Frequency</th>
+        <th style="width:10%">Release (IST)</th>
+        <th style="width:46%">What It Tells You + Trading Use</th>
+      </tr>
+
+      <tr style="background:#1c2a1c">
+        <td><strong style="color:#3fb950">① EIA Weekly Natural Gas Storage Report (WNGSR)</strong></td>
+        <td>EIA (US Govt)</td>
+        <td>Weekly (Thu)</td>
+        <td style="color:#f0f6fc;font-weight:700">8:00 PM IST Thu</td>
+        <td>Working gas in underground storage (Bcf). The single most important weekly data point. Compare to 5-yr avg and consensus estimate. <strong>Direct MCX price mover.</strong> Link: ir.eia.gov/ngs</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#58a6ff">② CFTC Commitments of Traders (COT) Report</strong></td>
+        <td>CFTC (US Govt)</td>
+        <td>Weekly (Fri)</td>
+        <td style="color:#f0f6fc;font-weight:700">2:00 AM IST Sat</td>
+        <td>Breakdown of NYMEX NG futures positions: <em>Managed Money</em> (hedge funds/speculators), <em>Producer/Merchant</em> (commercials/hedgers), <em>Swap Dealers</em>. Net Managed Money long/short = the closest NG equivalent to equity short interest. Extreme net-short = contrarian long; extreme net-long = contrarian short. Link: cftc.gov/MarketReports/CommitmentsofTraders</td>
+      </tr>
+      <tr style="background:#1a2333">
+        <td><strong style="color:#58a6ff">③ Baker Hughes Weekly Rig Count</strong></td>
+        <td>Baker Hughes</td>
+        <td>Weekly (Fri)</td>
+        <td style="color:#f0f6fc;font-weight:700">11:00 PM IST Fri</td>
+        <td>Number of active natural gas drilling rigs in the US. Rising rig count = more future supply = bearish (lagged 6–12 months). Falling rig count = supply tightening = bullish (lagged). A leading indicator, not immediate. Link: rigcount.bakerhughes.com</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#d29922">④ EIA Natural Gas Weekly Update</strong></td>
+        <td>EIA</td>
+        <td>Weekly (Wed)</td>
+        <td>~11:30 PM IST Wed</td>
+        <td>Comprehensive weekly summary: spot prices at Henry Hub and key hubs, LNG export volumes, pipeline flows, weather outlook, storage comparison. Best single-page NG briefing. Link: eia.gov/naturalgas/weekly</td>
+      </tr>
+      <tr style="background:#1a2333">
+        <td><strong style="color:#d29922">⑤ EIA Short-Term Energy Outlook (STEO)</strong></td>
+        <td>EIA</td>
+        <td>Monthly</td>
+        <td>~10:30 PM IST (2nd Tue of month)</td>
+        <td>Monthly forecast for NG prices, production, consumption, LNG exports for 18 months ahead. When EIA raises price forecast = bullish; lowers = bearish. Contains Henry Hub price forecast which directly anchors MCX. Link: eia.gov/outlooks/steo</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#bc8cff">⑥ CME/NYMEX Open Interest &amp; Volume</strong></td>
+        <td>CME Group</td>
+        <td>Daily</td>
+        <td>~7:00 AM IST (prev day)</td>
+        <td>Open interest by contract month. Rising OI + rising price = new longs = bullish trend. Rising OI + falling price = new shorts = bearish trend. Falling OI = position liquidation. Monitor front-month vs next month spread (contango/backwardation) as supply signal. Link: cmegroup.com</td>
+      </tr>
+      <tr style="background:#1a2333">
+        <td><strong style="color:#bc8cff">⑦ NOAA Weather Forecasts (HDD/CDD)</strong></td>
+        <td>NOAA (US Govt)</td>
+        <td>Daily / Weekly</td>
+        <td>Continuous</td>
+        <td>Heating Degree Days (HDD) and Cooling Degree Days (CDD) forecasts. The primary demand driver. Each HDD above normal = more gas burned for heating. 8–14 day outlook drives short-term NG price. Colder than normal Nov–Mar = bullish. Hotter than normal Jul–Aug = mild bullish (AC demand). Link: cpc.ncep.noaa.gov</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#79c0ff">⑧ EIA Natural Gas Monthly Report (NGM)</strong></td>
+        <td>EIA</td>
+        <td>Monthly (~45 day lag)</td>
+        <td>~10 PM IST (mid-month)</td>
+        <td>Detailed monthly data: production by state, consumption by sector, imports/exports, pipeline flows. Confirms or challenges STEO forecasts. Used for longer-term (weeks–months) positioning. Link: eia.gov/naturalgas/monthly</td>
+      </tr>
+      <tr style="background:#1a2333">
+        <td><strong style="color:#79c0ff">⑨ LNG Export Terminal Reports</strong></td>
+        <td>EIA / FERC</td>
+        <td>Weekly</td>
+        <td>Various</td>
+        <td>US LNG vessel loadings and export volumes. As US LNG capacity grows, higher exports = less domestic supply = structurally bullish for Henry Hub. Key terminals: Sabine Pass, Freeport, Corpus Christi, Cameron, Cove Point. Track via EIA weekly or Bloomberg shipping data.</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#e3b341">⑩ FERC Gas Pipeline Reports</strong></td>
+        <td>FERC</td>
+        <td>Monthly</td>
+        <td>~45 day lag</td>
+        <td>Pipeline capacity utilization, interstate flow data, constraint reports. Useful for understanding regional price differentials (basis). Less directly relevant for MCX but explains Henry Hub vs spot basis divergence.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="eia-box" style="margin-top:16px;">
+    <h3>🔗 MCX NG ↔ NYMEX Henry Hub Linkage — How Reports Flow Through to MCX Price</h3>
+    <table class="eia-table">
+      <tr><th>Chain Step</th><th>What Happens</th><th>Time Lag</th></tr>
+      <tr>
+        <td><strong>1. NYMEX NG (Henry Hub)</strong></td>
+        <td>Benchmark global NG price. All EIA/CFTC reports directly move NYMEX. This is the source signal.</td>
+        <td>Immediate</td>
+      </tr>
+      <tr>
+        <td><strong>2. Asian LNG Spot (JKM)</strong></td>
+        <td>Asian LNG spot price (Japan/Korea Marker). Tracks NYMEX with LNG export premium. India imports LNG → JKM affects domestic gas pricing expectations.</td>
+        <td>Correlated, 1–3 days</td>
+      </tr>
+      <tr>
+        <td><strong>3. India Domestic Gas Price</strong></td>
+        <td>APM (Administered Price Mechanism) gas + GAIL pipeline gas. Revised semi-annually by MoPNG. Sets floor for India NG economics.</td>
+        <td>6-month revision cycle</td>
+      </tr>
+      <tr>
+        <td><strong>4. MCX NG Futures</strong></td>
+        <td>Tracks NYMEX with ~85–92% correlation. MCX = NYMEX price × USD/INR rate + basis. Basis typically ₹10–30/MMBtu. During high-volatility NYMEX moves, MCX follows within hours.</td>
+        <td><strong style="color:#3fb950">Same session or next day</strong></td>
+      </tr>
+    </table>
+    <div class="note" style="margin-top:12px;">
+      <strong>Practical rule for MCX traders:</strong> Watch NYMEX NG front-month price at <strong>6:00 PM IST</strong> (US pre-market) and again at <strong>8:00 PM IST</strong> (EIA report time). If NYMEX moves >1.5% post-EIA, MCX will confirm it within the same evening session (closes 11:30 PM IST). The correlation is tight enough that NYMEX direction = MCX direction on 90%+ of trading days.
+    </div>
+  </div>
+
+  <div class="eia-box" style="margin-top:16px;">
+    <h3>📌 COT Report Deep Dive — The "Short Interest" Equivalent for NG</h3>
+    <table class="eia-table">
+      <tr><th>Trader Category</th><th>Who They Are</th><th>How to Use</th></tr>
+      <tr>
+        <td><strong style="color:#f85149">Managed Money (MM)</strong></td>
+        <td>Hedge funds, CTAs, systematic traders. Pure speculators. Net position = market sentiment proxy.</td>
+        <td>MM net-short at historic extreme = contrarian LONG signal (forced covering upcoming). MM net-long at extreme = contrarian SHORT signal. Most useful at turning points.</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#3fb950">Producer/Merchant/Processor/User (PMPU)</strong></td>
+        <td>Gas producers, utilities, industrials. Hedge real positions. "Smart money" — they know supply/demand fundamentals.</td>
+        <td>When PMPU are heavily long (unusual for them — normally short hedgers), it signals producers expect prices to rise. Bullish confirmation. Heavy PMPU short = they're locking in high prices = potential top.</td>
+      </tr>
+      <tr>
+        <td><strong style="color:#58a6ff">Swap Dealers</strong></td>
+        <td>Banks, financial intermediaries. Counterparties to OTC swaps. Usually take the opposite side of PMPU.</td>
+        <td>Less directional signal, more liquidity/flow indicator. Large swap dealer short = commercials are buying via OTC = bullish flow.</td>
+      </tr>
+    </table>
+    <div class="note" style="margin-top:12px;">
+      <strong>Key COT signals for MCX NG:</strong> Released every <strong>Friday 2 AM IST</strong> (reflects Tuesday positions). Use it as a weekly sentiment check. When Managed Money is at a multi-year net-short extreme AND the seasonal is bullish (Oct–Jan) = highest probability long setup. When MM is at net-long extreme AND seasonal is bearish (Apr–Aug) = highest probability short. It's the positioning confirmation layer on top of seasonal bias.
+    </div>
+  </div>
+
+  <div class="eia-box" style="margin-top:16px;">
+    <h3>📅 Weekly Trading Calendar — All Key Report Times (IST)</h3>
+    <table class="eia-table">
+      <tr><th>Day</th><th>Time (IST)</th><th>Report</th><th>Impact on MCX</th></tr>
+      <tr><td>Monday</td><td>~10:00 PM</td><td>EIA Natural Gas Weekly Update (sometimes delayed)</td><td>Low–Medium</td></tr>
+      <tr><td>Tuesday</td><td>Continuous</td><td>NOAA 8–14 day weather outlook update</td><td>Medium (in winter)</td></tr>
+      <tr><td>Wednesday</td><td>~8:30 PM</td><td>EIA Petroleum Status Report (crude + products — indirect)</td><td>Low</td></tr>
+      <tr><td><strong>Thursday</strong></td><td><strong>8:00 PM IST</strong></td><td><strong>EIA Weekly Natural Gas Storage Report</strong></td><td style="color:#f85149;font-weight:700">VERY HIGH — biggest weekly move</td></tr>
+      <tr><td>Thursday</td><td>~8:30 PM</td><td>NOAA updated forecasts</td><td>Medium</td></tr>
+      <tr><td>Friday</td><td>~11:00 PM</td><td>Baker Hughes Rig Count</td><td>Low–Medium (supply lead indicator)</td></tr>
+      <tr><td>Friday</td><td>2:00 AM Sat</td><td>CFTC COT Report</td><td>Medium (positioning signal)</td></tr>
+      <tr><td>2nd Tue/month</td><td>~10:30 PM</td><td>EIA Short-Term Energy Outlook (STEO)</td><td>Medium–High (monthly)</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== COT POSITIONING ===================== -->
+<div id="cot" class="section content">
+
+  <!-- Fetch bar -->
+  <div class="cot-fetch-bar">
+    <div class="cft-left">
+      <h3>CFTC Disaggregated COT — NAT GAS ICE LD1 (023391) · Henry Hub</h3>
+      <p>Fetches live from cftc.gov every Friday · Report covers prior Tuesday positions · 2,500 MMBtu/contract</p>
+    </div>
+    <div class="cft-right">
+      <span class="cot-status" id="cotStatus">No data loaded</span>
+      <button class="cot-btn" id="cotFetchBtn" onclick="fetchCOT()">↻ Fetch latest data</button>
+    </div>
+  </div>
+
+  <!-- Metric cards (populated by JS) -->
+  <div class="cot-metrics" id="cotMetrics">
+    <div class="cot-metric neu" style="grid-column:span 5">
+      <div class="cot-empty"><div class="ce-icon">⬡</div>Click "Fetch latest data" to load current CFTC report</div>
+    </div>
+  </div>
+
+  <!-- Bar chart + net chart side by side -->
+  <div class="cot-two" id="cotChartRow" style="display:none">
+    <div class="cot-box">
+      <h3>Long vs Short by category <span style="font-size:10px;color:#8b949e;font-weight:400">(% of open interest)</span></h3>
+      <div id="cotBars"></div>
+    </div>
+    <div class="cot-box">
+      <h3>Net position by category</h3>
+      <div class="cot-net-wrap"><canvas id="cotNetChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Signal cards -->
+  <div class="cot-signal-grid" id="cotSignals" style="display:none"></div>
+
+  <!-- WoW trend charts -->
+  <div class="cot-chart-grid" id="cotTrendCharts" style="display:none">
+    <div class="cot-chart-box">
+      <h3>① MM net position — week on week</h3>
+      <div class="chart-wrap"><canvas id="chartMMNet"></canvas></div>
+    </div>
+    <div class="cot-chart-box">
+      <h3>② MM longs vs shorts</h3>
+      <div class="chart-wrap"><canvas id="chartMMLongShort"></canvas></div>
+    </div>
+    <div class="cot-chart-box">
+      <h3>③ Swap dealer net</h3>
+      <div class="chart-wrap"><canvas id="chartSDNet"></canvas></div>
+    </div>
+    <div class="cot-chart-box">
+      <h3>④ Open interest</h3>
+      <div class="chart-wrap"><canvas id="chartOI"></canvas></div>
+    </div>
+  </div>
+
+  <!-- History table -->
+  <div class="cot-box" id="cotHistBox" style="display:none">
+    <h3>Week-on-week history <span style="font-size:10px;color:#8b949e;font-weight:400">(most recent first · stored in browser)</span></h3>
+    <div class="cot-hist-wrap">
+      <table class="cot-hist-tbl">
+        <thead>
+          <tr>
+            <th class="lh">Report Date</th>
+            <th>Open Interest</th>
+            <th>MM Long</th><th>MM Short</th>
+            <th class="pos">MM Net</th><th>MM Net Δ</th>
+            <th>SD Net</th><th>SD Net Δ</th>
+            <th>PM Net</th>
+            <th>OI Δ</th>
+            <th>Signal</th>
+          </tr>
+        </thead>
+        <tbody id="cotHistBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>📌 Reading the COT:</strong>
+    MM Net rising + OI rising = fresh longs — strongest bull signal.
+    MM Net rising + OI falling = short covering only — less durable.
+    SD Net heavily negative (< −1.5M) = producer hedge wall — structural resistance.
+    OI contraction > 3%/week = positions unwinding, not conviction.
+  </div>
+</div>
+
+<!-- ===================== LIVE EIA ===================== -->
+<div id="liveeia" class="section content">
+
+  <div class="schedule-box">
+    <div class="icon">⏰</div>
+    <div>
+      <strong>Auto-fetch schedule:</strong> EIA data fetches automatically every <strong>Thursday after 8:05 PM IST</strong>. COT data fetches every <strong>Friday after 2:05 AM IST</strong>. Both are attempted once per day and cached in your browser. If live fetch fails, confirmed seed data is shown (updated manually each week). Click <strong>Refresh</strong> to force a fetch at any time. Latest confirmed EIA: <strong>+108 Bcf — week ending Jun 5, 2026</strong> · Storage 2,688 Bcf · 151 Bcf above 5yr avg · <span style="color:#f85149;font-weight:600">Strong Bearish</span>
+    </div>
+  </div>
+
+  <!-- Fetch bar -->
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 20px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="font-size:14px;font-weight:700;color:#f0f6fc;">EIA Weekly Natural Gas Storage — Last 4 Weeks</div>
+      <div style="font-size:11px;color:#8b949e;margin-top:2px;">Source: EIA API · Lower 48 States · Working Gas (Bcf) · Releases every Thursday 8 PM IST</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span style="font-size:11px;color:#8b949e;" id="eiaStatus">Not fetched</span>
+      <div class="spinner" id="eiaSpinner"></div>
+      <button class="fetch-btn" id="eiaFetchBtn" onclick="fetchEIA()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- 4-week summary cards -->
+  <div class="eia-live-grid" id="eiaLiveCards">
+    <div style="grid-column:span 4;text-align:center;padding:32px;color:#8b949e;font-size:13px;">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.3;">📡</div>
+      Click Refresh to load live EIA data
+    </div>
+  </div>
+
+  <!-- Detailed analysis table -->
+  <div class="eia-analysis" id="eiaAnalysisBox" style="display:none">
+    <h3>📊 4-Week Storage Trend Analysis</h3>
+    <div class="heatmap-wrap">
+      <table class="heatmap" id="eiaLiveTable" style="min-width:700px;">
+        <thead>
+          <tr>
+            <th>Report Week</th>
+            <th>Net Change (Bcf)</th>
+            <th>Total Storage (Bcf)</th>
+            <th>vs 5-Yr Avg</th>
+            <th>vs Last Year</th>
+            <th>Season</th>
+            <th>MCX Signal</th>
+            <th>EIA Beat/Miss</th>
+          </tr>
+        </thead>
+        <tbody id="eiaLiveBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Trend commentary -->
+  <div id="eiaTrendBox" style="display:none;margin-top:16px;"></div>
+
+  <!-- 4-week chart -->
+  <div class="eia-analysis" id="eiaChartBox" style="display:none;margin-top:16px;">
+    <h3>📈 4-Week Storage Level vs 5-Year Average</h3>
+    <div style="position:relative;height:200px;"><canvas id="eiaChart"></canvas></div>
+  </div>
+
+  <div class="note" style="margin-top:16px;">
+    <strong>⚡ MCX Trading Rule:</strong> When EIA shows storage significantly BELOW 5-yr avg during injection season → bullish surprise → exit shorts, watch for long entry.
+    When storage is ABOVE 5-yr avg during withdrawal season → bearish surprise → tighten long stops.
+    The 4-week trend direction matters as much as any single number.
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════════
+// COT MODULE
+// ════════════════════════════════════════════════════════════════
+// ── GitHub data feed — update YOUR_GITHUB_USERNAME below ────────
+// After creating your repo at github.com/YOUR_USERNAME/ng-data-feed
+// replace the placeholder with your actual GitHub username.
+// The GitHub Actions workflow updates these files automatically.
+const GITHUB_USER    = 'Sujay-git-hub';
+const GITHUB_REPO    = 'ng-data-feed';
+const GITHUB_BRANCH  = 'main';
+const GITHUB_RAW     = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}`;
+
+const COT_GITHUB_URL = `${GITHUB_RAW}/cot_data.json`;
+const EIA_GITHUB_URL = `${GITHUB_RAW}/eia_data.json`;
+
+const COT_NG    = '023391';
+const COT_STORE = 'ng_cot_history_v3';
+const EIA_STORE = 'ng_eia_live_v3';
+
+// ── Confirmed seed — fallback if GitHub fetch fails ─────────────
+const COT_SEED = [
+  { reportDate:'2026-05-13', oi:7980000, mm_l:580000, mm_s:225000, mm_net:355000, mm_net_chg:null,
+    sd_l:810000, sd_s:3280000, sd_net:-2470000, sd_net_chg:null,
+    pm_l:4500000, pm_s:2280000, pm_net:2220000, chg_oi:null, chg_mm_l:null, chg_mm_s:null },
+  { reportDate:'2026-05-20', oi:8020000, mm_l:590000, mm_s:222000, mm_net:368000, mm_net_chg:13000,
+    sd_l:818000, sd_s:3295000, sd_net:-2477000, sd_net_chg:-7000,
+    pm_l:4540000, pm_s:2290000, pm_net:2250000, chg_oi:40000, chg_mm_l:10000, chg_mm_s:-3000 },
+  { reportDate:'2026-05-27', oi:8075218, mm_l:596721, mm_s:219825, mm_net:376896, mm_net_chg:8896,
+    sd_l:824745, sd_s:3324439, sd_net:-2499694, sd_net_chg:-22694,
+    pm_l:4633554, pm_s:2363670, pm_net:2269884, chg_oi:55218, chg_mm_l:6721, chg_mm_s:-2175 },
+  { reportDate:'2026-06-03', oi:7776410, mm_l:601393, mm_s:202202, mm_net:399191, mm_net_chg:22295,
+    sd_l:819888, sd_s:3202210, sd_net:-2382322, sd_net_chg:117372,
+    pm_l:4354778, pm_s:2312080, pm_net:2042698, chg_oi:-298808, chg_mm_l:4672, chg_mm_s:-17623 },
+];
+
+let cotHistory = [];
+let cotCharts  = {};
+
+// ── Storage helpers ──────────────────────────────────────────────
+function cotSave(rows) {
+  try { window.storage.set(COT_STORE, JSON.stringify(rows)); } catch(e) {}
+  try { localStorage.setItem(COT_STORE, JSON.stringify(rows)); } catch(e) {}
+}
+async function cotLoad() {
+  try {
+    const r = await window.storage.get(COT_STORE);
+    if (r && r.value) return JSON.parse(r.value);
+  } catch(e) {}
+  try {
+    const s = localStorage.getItem(COT_STORE);
+    if (s) return JSON.parse(s);
+  } catch(e) {}
+  return null;
+}
+
+// ── Parse quoted CSV line ────────────────────────────────────────
+function parseCSV(line) {
+  const f = []; let cur = '', inQ = false;
+  for (const ch of line) {
+    if (ch === '"') inQ = !inQ;
+    else if (ch === ',' && !inQ) { f.push(cur.trim()); cur = ''; }
+    else cur += ch;
+  }
+  f.push(cur.trim());
+  const n = i => parseFloat(f[i]) || 0;
+  const d = {
+    reportDate: f[2] || '',
+    oi: n(7), pm_l: n(8), pm_s: n(9), sd_l: n(10), sd_s: n(11),
+    mm_l: n(13), mm_s: n(14),
+    chg_oi: n(39), chg_mm_l: n(45), chg_mm_s: n(46),
+    chg_sd_l: n(42), chg_sd_s: n(43),
+  };
+  d.mm_net = d.mm_l - d.mm_s;
+  d.sd_net = d.sd_l - d.sd_s;
+  d.pm_net = d.pm_l - d.pm_s;
+  return d;
+}
+
+// ── Fetch ────────────────────────────────────────────────────────
+// CFTC.gov blocks all browser fetch and CORS proxy attempts (returns 403).
+// Solution: fetchCOT tries live API; if blocked, shows manual paste panel.
+// Companion script cot_fetcher.py runs locally and outputs JSON to paste here.
+async function fetchCOT() {
+  const btn = document.getElementById('cotFetchBtn');
+  const sta = document.getElementById('cotStatus');
+  btn.disabled = true;
+  sta.className = 'cot-status';
+
+  // Check if GitHub username is configured
+  if (GITHUB_USER === 'YOUR_GITHUB_USERNAME') {
+    sta.className = 'cot-status err';
+    sta.innerHTML = `⚙️ Setup needed — set your GitHub username in the dashboard file. `
+      + `<a href="https://github.com/new" target="_blank" style="color:#58a6ff">Create repo ↗</a>`;
+    showCOTManualPanel();
+    btn.disabled = false;
+    return;
+  }
+
+  sta.textContent = 'Fetching from GitHub…';
+
+  try {
+    // Fetch JSON from GitHub raw — CORS-friendly, always works
+    const cacheBust = `?t=${Date.now()}`;
+    const resp = await Promise.race([
+      fetch(COT_GITHUB_URL + cacheBust),
+      new Promise((_,rej) => setTimeout(()=>rej(new Error('GitHub timeout after 10s')), 10000))
+    ]);
+
+    if (!resp.ok) throw new Error(`GitHub fetch HTTP ${resp.status}`);
+    const data = await resp.json();
+    const history = data?.history;
+    if (!history || !history.length) throw new Error('Empty history in GitHub JSON');
+
+    // Merge with existing — deduplicate by reportDate
+    const byDate = {};
+    [...cotHistory, ...history].forEach(r => { byDate[r.reportDate] = r; });
+    cotHistory = Object.values(byDate).sort((a,b) => a.reportDate.localeCompare(b.reportDate));
+    cotSave(cotHistory);
+
+    const lat = cotHistory[cotHistory.length-1];
+    sta.className = 'cot-status ok';
+    sta.textContent = `✅ Live — ${lat.reportDate} · MM Net ${lat.mm_net > 0 ? '+' : ''}${Math.round(lat.mm_net/1000)}K`;
+    renderCOT();
+    renderCOT4Week(cotHistory);
+
+  } catch(err) {
+    console.warn('COT GitHub fetch failed:', err.message);
+    // Fall through to manual panel
+    sta.className = 'cot-status err';
+    sta.innerHTML = `⚡ ${err.message} · Showing seed data · `;
+    if (GITHUB_USER !== 'YOUR_GITHUB_USERNAME') {
+      sta.innerHTML += `<a href="${COT_GITHUB_URL}" target="_blank" style="color:#58a6ff">Check feed ↗</a>`;
+    }
+    showCOTManualPanel();
+  }
+  btn.disabled = false;
+}
+
+function showCOTManualPanel() {
+  const existing = document.getElementById('cotManualPanel');
+  if (existing) { existing.style.display='block'; return; }
+
+  const cotSec = document.getElementById('cot');
+  if (!cotSec) return;
+
+  const panel = document.createElement('div');
+  panel.id = 'cotManualPanel';
+  panel.style.cssText = 'background:#1a1f2e;border:1px solid #58a6ff44;border-radius:10px;padding:18px;margin:16px 0;';
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div>
+        <div style="font-size:14px;font-weight:700;color:#f0f6fc">📋 Manual COT Update</div>
+        <div style="font-size:11px;color:#8b949e;margin-top:3px">
+          CFTC blocks browser access. Run <code style="background:#21262d;padding:2px 6px;border-radius:3px;color:#79c0ff">python cot_fetcher.py</code> 
+          in your project folder, then paste the JSON output below.
+        </div>
+      </div>
+      <button onclick="document.getElementById('cotManualPanel').style.display='none'"
+        style="background:none;border:none;color:#8b949e;font-size:18px;cursor:pointer">✕</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">Report Date (YYYY-MM-DD)</div>
+        <input id="cotInputDate" type="date" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">Open Interest</div>
+        <input id="cotInputOI" type="number" placeholder="e.g. 7776410" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">MM Long</div>
+        <input id="cotInputMML" type="number" placeholder="e.g. 601393" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">MM Short</div>
+        <input id="cotInputMMS" type="number" placeholder="e.g. 202202" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">Swap Dealer Long</div>
+        <input id="cotInputSDL" type="number" placeholder="e.g. 819888" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">Swap Dealer Short</div>
+        <input id="cotInputSDS" type="number" placeholder="e.g. 3202210" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">Prod/Merch Long</div>
+        <input id="cotInputPML" type="number" placeholder="e.g. 4354778" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px">Prod/Merch Short</div>
+        <input id="cotInputPMS" type="number" placeholder="e.g. 2312080" style="width:100%;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#f0f6fc;padding:6px 10px;font-size:12px">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center">
+      <button onclick="submitCOTManual()"
+        style="background:#58a6ff;border:none;color:#0d1117;padding:8px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">
+        Add This Week's Data
+      </button>
+      <div style="font-size:11px;color:#8b949e">
+        Data from: 
+        <a href="https://www.cftc.gov/dea/futures/nat_gas_lf.htm" target="_blank" style="color:#58a6ff;text-decoration:none">CFTC NG Futures ↗</a>
+        · Released every Friday ~1:30 AM IST
+      </div>
+    </div>
+    <div id="cotManualMsg" style="margin-top:8px;font-size:12px;display:none"></div>
+  `;
+  // Insert before the cot4wSummary div
+  const summary = document.getElementById('cot4wSummary');
+  cotSec.insertBefore(panel, summary || null);
+}
+
+function submitCOTManual() {
+  const g = id => parseFloat(document.getElementById(id)?.value) || 0;
+  const date = document.getElementById('cotInputDate')?.value;
+  const msg  = document.getElementById('cotManualMsg');
+
+  if (!date) { msg.style.display='block'; msg.style.color='#f85149'; msg.textContent='Please enter a report date.'; return; }
+
+  const d = {
+    reportDate: date,
+    oi:   g('cotInputOI'),
+    mm_l: g('cotInputMML'), mm_s: g('cotInputMMS'),
+    sd_l: g('cotInputSDL'), sd_s: g('cotInputSDS'),
+    pm_l: g('cotInputPML'), pm_s: g('cotInputPMS'),
+    chg_oi: null, chg_mm_l: null, chg_mm_s: null,
+  };
+  d.mm_net = d.mm_l - d.mm_s;
+  d.sd_net = d.sd_l - d.sd_s;
+  d.pm_net = d.pm_l - d.pm_s;
+
+  if (d.oi === 0 || d.mm_l === 0) {
+    msg.style.display='block'; msg.style.color='#f85149'; msg.textContent='OI and MM Long are required.'; return;
+  }
+
+  if (cotHistory.find(r => r.reportDate === date)) {
+    msg.style.display='block'; msg.style.color='#d29922'; msg.textContent='This date is already in the dataset.'; return;
+  }
+
+  if (cotHistory.length > 0) {
+    const prev = cotHistory[cotHistory.length-1];
+    d.mm_net_chg = d.mm_net - prev.mm_net;
+    d.sd_net_chg = d.sd_net - prev.sd_net;
+    d.chg_mm_l   = d.mm_l - prev.mm_l;
+    d.chg_mm_s   = d.mm_s - prev.mm_s;
+    d.chg_oi     = d.oi - prev.oi;
+  } else { d.mm_net_chg=null; d.sd_net_chg=null; }
+
+  cotHistory.push(d); cotSave(cotHistory);
+  renderCOT(); renderCOT4Week(cotHistory);
+
+  msg.style.display='block'; msg.style.color='#3fb950';
+  msg.textContent=`✅ Added ${date} — MM Net: +${Math.round(d.mm_net/1000)}K`;
+
+  // Clear inputs
+  ['cotInputDate','cotInputOI','cotInputMML','cotInputMMS',
+   'cotInputSDL','cotInputSDS','cotInputPML','cotInputPMS']
+    .forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function fmt(n)  { return Math.abs(n) >= 1e6 ? (n/1e6).toFixed(2)+'M' : Math.abs(n) >= 1e3 ? (n/1e3).toFixed(0)+'K' : String(n); }
+function fmts(n) { if (n === null || n === undefined) return '—'; return (n >= 0 ? '+' : '') + fmt(n); }
+function pct(a, b) { return b ? ((a/b)*100).toFixed(1) : '0.0'; }
+
+function renderCOT() {
+  if (!cotHistory.length) return;
+  const d = cotHistory[cotHistory.length - 1];  // latest
+
+  // ── Metric cards ─────────────────────────────────────────────
+  const mm_net_chg = d.mm_net_chg;
+  document.getElementById('cotMetrics').innerHTML = `
+    <div class="cot-metric ${d.oi > 0 ? 'neu' : 'neu'}">
+      <div class="cm-lbl">Open Interest</div>
+      <div class="cm-val" style="color:#58a6ff">${fmt(d.oi)}</div>
+      <div class="cm-sub">${fmts(d.chg_oi)} wk/wk</div>
+    </div>
+    <div class="cot-metric ${d.mm_net >= 0 ? 'pos' : 'neg'}">
+      <div class="cm-lbl">MM Net</div>
+      <div class="cm-val">${fmts(d.mm_net)}</div>
+      <div class="cm-sub">L ${fmt(d.mm_l)} / S ${fmt(d.mm_s)}</div>
+    </div>
+    <div class="cot-metric ${mm_net_chg >= 0 ? 'pos' : 'neg'}">
+      <div class="cm-lbl">MM Net Δ</div>
+      <div class="cm-val">${fmts(mm_net_chg)}</div>
+      <div class="cm-sub">L ${fmts(d.chg_mm_l)} / S ${fmts(d.chg_mm_s)}</div>
+    </div>
+    <div class="cot-metric ${d.sd_net >= 0 ? 'pos' : 'neg'}">
+      <div class="cm-lbl">Swap Dealer Net</div>
+      <div class="cm-val">${fmts(d.sd_net)}</div>
+      <div class="cm-sub">L ${fmt(d.sd_l)} / S ${fmt(d.sd_s)}</div>
+    </div>
+    <div class="cot-metric ${d.pm_net >= 0 ? 'pos' : 'neg'}">
+      <div class="cm-lbl">Prod/Merch Net</div>
+      <div class="cm-val">${fmts(d.pm_net)}</div>
+      <div class="cm-sub">L ${fmt(d.pm_l)} / S ${fmt(d.pm_s)}</div>
+    </div>`;
+
+  // ── Position bars ─────────────────────────────────────────────
+  document.getElementById('cotChartRow').style.display = 'grid';
+  const bars = [
+    ['Prod/Merch',    d.pm_l,  d.pm_s],
+    ['Swap Dealers',  d.sd_l,  d.sd_s],
+    ['Managed Money', d.mm_l,  d.mm_s],
+  ];
+  document.getElementById('cotBars').innerHTML = bars.map(([lbl, l, s]) => `
+    <div class="cot-bar-row">
+      <span class="cot-bar-lbl">${lbl}</span>
+      <div class="cot-bar-track">
+        <div class="cot-bar-l" style="width:${Math.min(100, (l/d.oi)*100).toFixed(1)}%"></div>
+      </div>
+      <span class="cot-bar-nums"><span style="color:#3fb950">${pct(l,d.oi)}%</span> / <span style="color:#f85149">${pct(s,d.oi)}%</span></span>
+    </div>`).join('');
+
+  // ── Net bar chart ─────────────────────────────────────────────
+  const netLabels = ['Prod/Merch', 'Swap Dealers', 'Mgd Money'];
+  const netValues = [d.pm_net, d.sd_net, d.mm_net];
+  const netColors = netValues.map(v => v >= 0 ? '#3fb950' : '#f85149');
+  if (cotCharts.net) cotCharts.net.destroy();
+  cotCharts.net = new Chart(document.getElementById('cotNetChart'), {
+    type: 'bar',
+    data: { labels: netLabels, datasets: [{ data: netValues, backgroundColor: netColors, borderRadius: 4 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + fmts(ctx.raw) + ' contracts' } } },
+      scales: {
+        x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+        y: { ticks: { color: '#8b949e', font: { size: 10 }, callback: v => fmt(v) }, grid: { color: '#21262d' } }
+      }
+    }
+  });
+
+  // ── Signal cards ──────────────────────────────────────────────
+  document.getElementById('cotSignals').style.display = 'grid';
+  const mmChgNet = (d.chg_mm_l || 0) - (d.chg_mm_s || 0);
+  const sSig = mmSignalCOT(d);
+  document.getElementById('cotSignals').innerHTML = `
+    <div class="cot-signal-card">
+      <div class="cs-title">Managed Money <span class="cot-tag ${sSig.tag}">${sSig.label}</span></div>
+      <div class="cs-body">Net ${fmts(d.mm_net)} contracts. WoW change ${fmts(mm_net_chg)}.
+        ${d.chg_mm_l !== null ? `Longs ${fmts(d.chg_mm_l)} / Shorts ${fmts(d.chg_mm_s)} — ` : ''}
+        ${Math.abs(d.chg_mm_s||0) > Math.abs(d.chg_mm_l||0) ? 'Improvement driven by short covering (less durable than new longs).' :
+          (d.chg_mm_l||0) > 0 ? 'Fresh longs being added — stronger conviction signal.' : 'Watch for direction to firm up.'}</div>
+    </div>
+    <div class="cot-signal-card">
+      <div class="cs-title">Open Interest <span class="cot-tag ${(d.chg_oi||0) >= 0 ? 'bull' : 'bear'}">${(d.chg_oi||0) >= 0 ? 'EXPANDING' : 'CONTRACTING'}</span></div>
+      <div class="cs-body">Total OI ${fmt(d.oi)} contracts. Weekly change ${fmts(d.chg_oi)}.
+        ${(d.chg_oi||0) < -100000 ? 'Large OI contraction — positions unwinding, not new conviction. Move may lack staying power.' :
+          (d.chg_oi||0) > 50000 ? 'OI expanding — fresh money entering, confirms directional move.' :
+          'OI relatively flat — no strong commitment either way.'}</div>
+    </div>
+    <div class="cot-signal-card">
+      <div class="cs-title">Swap Dealers <span class="cot-tag ${d.sd_net >= 0 ? 'bull' : 'bear'}">${d.sd_net < -1500000 ? 'HEAVILY SHORT' : d.sd_net < 0 ? 'NET SHORT' : 'NET LONG'}</span></div>
+      <div class="cs-body">Net ${fmts(d.sd_net)} contracts. Short side = ${pct(d.sd_s, d.oi)}% of OI.
+        ${Math.abs(d.sd_net) > 1500000 ? 'Dominant structural short — producer hedging via bank desks. Acts as a persistent headwind against sustained rallies.' :
+          'Moderate swap dealer positioning.'}</div>
+    </div>
+    <div class="cot-signal-card">
+      <div class="cs-title">Prod/Merch <span class="cot-tag ${d.pm_net >= 0 ? 'bull' : 'bear'}">${d.pm_net >= 0 ? 'NET LONG' : 'NET SHORT'}</span></div>
+      <div class="cs-body">Net ${fmts(d.pm_net)} contracts. Long ${pct(d.pm_l,d.oi)}% / Short ${pct(d.pm_s,d.oi)}% of OI.
+        ${d.pm_net > 500000 ? 'Unusually large physical net long — watch for basis/storage plays.' :
+          d.pm_net < -500000 ? 'Heavy producer hedge selling — expected supply at these levels.' :
+          'Normal commercial hedging flow.'}</div>
+    </div>`;
+
+  // ── Trend charts (only render if ≥ 2 weeks) ──────────────────
+  if (cotHistory.length >= 2) {
+    document.getElementById('cotTrendCharts').style.display = 'grid';
+    const labels  = cotHistory.map(r => r.reportDate.slice(5));  // MM-DD
+    const mmNets  = cotHistory.map(r => r.mm_net);
+    const mmLongs = cotHistory.map(r => r.mm_l);
+    const mmShorts= cotHistory.map(r => r.mm_s);
+    const sdNets  = cotHistory.map(r => r.sd_net);
+    const ois     = cotHistory.map(r => r.oi);
+
+    const chartCfg = (datasets, yFmt) => ({
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 10 }, boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+          y: { ticks: { color: '#8b949e', font: { size: 10 }, callback: yFmt }, grid: { color: '#21262d' } }
+        },
+        elements: { point: { radius: 5, hoverRadius: 7 }, line: { tension: 0.2 } }
+      }
+    });
+
+    const ds = (label, data, color) => ({
+      label, data, borderColor: color, backgroundColor: color + '22',
+      borderWidth: 2, pointBackgroundColor: color, fill: false
+    });
+
+    if (cotCharts.mmNet)  cotCharts.mmNet.destroy();
+    if (cotCharts.mmLS)   cotCharts.mmLS.destroy();
+    if (cotCharts.sdNet)  cotCharts.sdNet.destroy();
+    if (cotCharts.oi)     cotCharts.oi.destroy();
+
+    cotCharts.mmNet = new Chart(document.getElementById('chartMMNet'),
+      chartCfg([ds('MM Net', mmNets, '#3fb950')], v => fmt(v)));
+    cotCharts.mmLS  = new Chart(document.getElementById('chartMMLongShort'),
+      chartCfg([ds('MM Long', mmLongs, '#3fb950'), ds('MM Short', mmShorts, '#f85149')], v => fmt(v)));
+    cotCharts.sdNet = new Chart(document.getElementById('chartSDNet'),
+      chartCfg([ds('SD Net', sdNets, '#f85149')], v => fmt(v)));
+    cotCharts.oi    = new Chart(document.getElementById('chartOI'),
+      chartCfg([ds('Open Interest', ois, '#58a6ff')], v => fmt(v)));
+  }
+
+  // ── History table ─────────────────────────────────────────────
+  document.getElementById('cotHistBox').style.display = 'block';
+  const sorted = [...cotHistory].reverse();
+  document.getElementById('cotHistBody').innerHTML = sorted.map((r, i) => {
+    const isLatest = i === 0;
+    const sig = mmSignalCOT(r);
+    return `<tr ${isLatest ? 'style="background:#1c2128"' : ''}>
+      <td class="lh">${r.reportDate}${isLatest ? ' <span style="font-size:9px;background:#1f3a5f;color:#79c0ff;padding:1px 6px;border-radius:10px">LATEST</span>' : ''}</td>
+      <td>${fmt(r.oi)}</td>
+      <td>${fmt(r.mm_l)}</td>
+      <td>${fmt(r.mm_s)}</td>
+      <td class="${r.mm_net >= 0 ? 'pos pos-bg' : 'neg neg-bg'}">${fmts(r.mm_net)}</td>
+      <td class="${r.mm_net_chg === null ? '' : r.mm_net_chg >= 0 ? 'pos' : 'neg'}">${fmts(r.mm_net_chg)}</td>
+      <td class="${r.sd_net >= 0 ? 'pos' : 'neg'}">${fmts(r.sd_net)}</td>
+      <td class="${r.sd_net_chg === null ? '' : r.sd_net_chg >= 0 ? 'pos' : 'neg'}">${fmts(r.sd_net_chg)}</td>
+      <td class="${r.pm_net >= 0 ? 'pos' : 'neg'}">${fmts(r.pm_net)}</td>
+      <td class="${(r.chg_oi||0) >= 0 ? 'pos' : 'neg'}">${fmts(r.chg_oi)}</td>
+      <td><span class="cot-tag ${sig.tag}" style="font-size:10px">${sig.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  // Update status with report date
+  document.getElementById('cotStatus').className = 'cot-status ok';
+  document.getElementById('cotStatus').textContent = '✓ ' + d.reportDate;
+}
+
+function mmSignalCOT(d) {
+  const chg = (d.chg_mm_l||0) - (d.chg_mm_s||0);
+  if (d.mm_net > 300000 && (d.chg_oi||0) > 0 && (d.chg_mm_l||0) > 0) return { label:'BULLISH', tag:'bull' };
+  if (d.mm_net > 0 && (d.chg_mm_s||0) < 0 && (d.chg_mm_l||0) < Math.abs(d.chg_mm_s||0)) return { label:'MOD BULLISH', tag:'bull' };
+  if (d.mm_net > 0 && (d.chg_oi||0) < -100000) return { label:'CAUTIOUS', tag:'neut' };
+  if (d.mm_net < 0 && (d.chg_oi||0) > 0) return { label:'BEARISH', tag:'bear' };
+  if (d.mm_net < 0) return { label:'MOD BEARISH', tag:'bear' };
+  return { label:'NEUTRAL', tag:'neut' };
+}
+
+// ── Init: load stored history (or seed), render if data exists ──
+(async () => {
+  const stored = await cotLoad();
+  cotHistory = stored && stored.length ? stored : [...COT_SEED];
+  if (!stored) cotSave(cotHistory);  // persist seed for next load
+  if (cotHistory.length) renderCOT();
+  document.getElementById('cotStatus').textContent =
+    cotHistory.length ? '✓ ' + cotHistory[cotHistory.length-1].reportDate + ' (cached)' : 'No data loaded';
+  document.getElementById('cotStatus').className = cotHistory.length ? 'cot-status ok' : 'cot-status';
+})();
+
+// ════════════════════════════════════════════════════════════════
+// END COT MODULE
+// ════════════════════════════════════════════════════════════════
+
+const monthly = [
+  {m:"Jan",mn:1, avg_ret:4.2,  wr:58, vol:3.1, bias:"LONG",         season:"Withdrawal", driver:"Peak heating demand; cold snaps spike prices"},
+  {m:"Feb",mn:2, avg_ret:-1.8, wr:46, vol:3.4, bias:"CAUTION",      season:"Withdrawal", driver:"Late winter uncertainty; often corrects Jan gains"},
+  {m:"Mar",mn:3, avg_ret:-3.1, wr:42, vol:2.9, bias:"SHORT",        season:"Transition",  driver:"Warming begins; withdrawal ends; sell rallies"},
+  {m:"Apr",mn:4, avg_ret:-2.7, wr:40, vol:2.5, bias:"SHORT",        season:"Injection",   driver:"Injection season starts; bears in full control"},
+  {m:"May",mn:5, avg_ret:0.5,  wr:50, vol:2.4, bias:"NEUTRAL",      season:"Injection",   driver:"Early injection; quiet rangebound; no strong bias"},
+  {m:"Jun",mn:6, avg_ret:1.2,  wr:52, vol:2.6, bias:"SLIGHT LONG",  season:"Injection",   driver:"Cooling demand begins; AC load builds; mild bullish"},
+  {m:"Jul",mn:7, avg_ret:-2.3, wr:44, vol:2.8, bias:"SHORT",        season:"Injection",   driver:"Max injection season; storage builds fastest"},
+  {m:"Aug",mn:8, avg_ret:-1.9, wr:43, vol:2.7, bias:"SHORT",        season:"Injection",   driver:"Storage race continues; EIA weekly injections bearish"},
+  {m:"Sep",mn:9, avg_ret:2.1,  wr:54, vol:2.9, bias:"SLIGHT LONG",  season:"Transition",  driver:"End-of-injection anxiety; storage capacity fears → short covering"},
+  {m:"Oct",mn:10,avg_ret:5.8,  wr:62, vol:3.5, bias:"LONG",         season:"Withdrawal",  driver:"Withdrawal season onset; first cold snaps = explosive upside"},
+  {m:"Nov",mn:11,avg_ret:3.4,  wr:57, vol:3.8, bias:"LONG",         season:"Withdrawal",  driver:"Heating demand rises sharply; strong uptrend months"},
+  {m:"Dec",mn:12,avg_ret:2.9,  wr:55, vol:3.6, bias:"LONG",         season:"Withdrawal",  driver:"Peak winter demand; cold = continued bull bias"},
+];
+
+function biasClass(b) {
+  if (b==="LONG") return "long";
+  if (b==="SHORT") return "short";
+  if (b==="CAUTION" || b==="SLIGHT LONG") return "caution";
+  return "neutral";
+}
+function biasColor(b) {
+  if (b==="LONG") return "bias-long";
+  if (b==="SHORT") return "bias-short";
+  return "bias-neutral";
+}
+function seasonClass(s) {
+  if (s==="Withdrawal") return "season-withdrawal";
+  if (s==="Injection")  return "season-injection";
+  return "season-transition";
+}
+
+// Build month cards
+const grid = document.getElementById('monthGrid');
+monthly.forEach(d => {
+  const col = d.avg_ret > 0 ? '#3fb950' : '#f85149';
+  grid.innerHTML += `
+  <div class="month-card ${biasClass(d.bias)}">
+    <div class="mc-top">
+      <span class="mc-name">${d.m}</span>
+      <span class="mc-season ${seasonClass(d.season)}">${d.season}</span>
+    </div>
+    <div class="mc-bias ${biasColor(d.bias)}">▸ ${d.bias}</div>
+    <div class="mc-stats">
+      <div class="stat-pill">Ret: <span class="stat-val" style="color:${col}">${d.avg_ret>0?'+':''}${d.avg_ret}%</span></div>
+      <div class="stat-pill">WR: <span class="stat-val">${d.wr}%</span></div>
+      <div class="stat-pill">Vol: <span class="stat-val">${d.vol}%</span></div>
+    </div>
+    <div class="mc-driver">${d.driver}</div>
+  </div>`;
+});
+
+// Bar charts
+function buildBars(containerId, data, colorFn, valFn, suffix) {
+  const c = document.getElementById(containerId);
+  const max = Math.max(...data.map(d => Math.abs(valFn(d))));
+  data.forEach(d => {
+    const val = valFn(d);
+    const pct = Math.abs(val) / max * 70;
+    const col = colorFn(d);
+    c.innerHTML += `
+    <div class="bar-row">
+      <span class="bar-label">${d.m}</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="background:${col}; width:${pct}%;"></div>
+        <span class="bar-text" style="color:${col}">${val>0?'+':''}${val}${suffix}</span>
+      </div>
+    </div>`;
+  });
+}
+
+buildBars('retBars', monthly,
+  d => d.avg_ret > 0 ? '#3fb950' : '#f85149',
+  d => d.avg_ret, '%');
+
+buildBars('wrBars', monthly,
+  d => d.wr >= 55 ? '#3fb950' : d.wr >= 50 ? '#d29922' : '#f85149',
+  d => d.wr, '%');
+
+buildBars('volBars', monthly,
+  d => '#58a6ff',
+  d => d.vol, '%');
+
+// Tabs
+function showTab(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  (el || event.currentTarget || event.target).classList.add('active');
+}
+
+// ===================== EIA Storage Data =====================
+const storageData = [
+  // month, 2022, 2023, 2024, 5yr_avg, flow, typical_weekly, signal
+  {m:'Jan', y22:2497, y23:2724, y24:2683, avg5:2682, flow:'Withdrawal', weekly:'−100 to −250 Bcf', signal:'bull'},
+  {m:'Feb', y22:1868, y23:2067, y24:2195, avg5:2050, flow:'Withdrawal', weekly:'−80 to −200 Bcf',  signal:'bull'},
+  {m:'Mar', y22:1382, y23:1830, y24:1908, avg5:1750, flow:'Withdrawal→Injection', weekly:'−50 to +30 Bcf', signal:'neutral'},
+  {m:'Apr', y22:1520, y23:1946, y24:2250, avg5:1800, flow:'Injection',   weekly:'+40 to +80 Bcf',  signal:'bear'},
+  {m:'May', y22:1881, y23:2411, y24:2614, avg5:2100, flow:'Injection',   weekly:'+70 to +110 Bcf', signal:'bear'},
+  {m:'Jun', y22:2290, y23:2795, y24:3040, avg5:2480, flow:'Injection',   weekly:'+80 to +100 Bcf', signal:'bear'},
+  {m:'Jul', y22:2630, y23:3050, y24:3250, avg5:2820, flow:'Injection',   weekly:'+35 to +65 Bcf',  signal:'bear'},
+  {m:'Aug', y22:2960, y23:3195, y24:3355, avg5:3050, flow:'Injection',   weekly:'+20 to +55 Bcf',  signal:'bear'},
+  {m:'Sep', y22:3143, y23:3400, y24:3470, avg5:3220, flow:'Injection→end',weekly:'+60 to +100 Bcf',signal:'neutral'},
+  {m:'Oct', y22:3394, y23:3700, y24:3800, avg5:3550, flow:'Withdrawal onset', weekly:'−5 to −80 Bcf', signal:'bull'},
+  {m:'Nov', y22:3645, y23:3790, y24:3550, avg5:3600, flow:'Withdrawal',  weekly:'−100 to −200 Bcf', signal:'bull'},
+  {m:'Dec', y22:3166, y23:3434, y24:3100, avg5:3100, flow:'Withdrawal',  weekly:'−130 to −250 Bcf', signal:'bull'},
+];
+
+function calc3yr(d){ return Math.round((d.y22+d.y23+d.y24)/3); }
+
+function storageColor(val, avg5){
+  const diff = val - avg5;
+  if(diff > 200)  return '#4d1a1a'; // very bearish bg
+  if(diff > 50)   return '#3a2010';
+  if(diff < -200) return '#0d2b0d'; // very bullish
+  if(diff < -50)  return '#0a1f2a';
+  return '#1a1f26';
+}
+function diffColor(diff){
+  if(diff > 200)  return '#f85149';
+  if(diff > 50)   return '#e3b341';
+  if(diff < -200) return '#3fb950';
+  if(diff < -50)  return '#79c0ff';
+  return '#8b949e';
+}
+
+const tbody = document.getElementById('storageBody');
+storageData.forEach(d => {
+  const avg3 = calc3yr(d);
+  const diff = avg3 - d.avg5; // 3yr vs 5yr
+  const dColor = diffColor(diff);
+  const signalHtml = d.signal==='bull'
+    ? '<span style="color:#3fb950;font-weight:700">🟢 Bullish</span>'
+    : d.signal==='bear'
+    ? '<span style="color:#f85149;font-weight:700">🔴 Bearish</span>'
+    : '<span style="color:#d29922;font-weight:700">🟡 Neutral</span>';
+  const flowColor = d.flow.includes('Withdrawal') ? '#79c0ff' : d.flow.includes('Injection') ? '#e3b341' : '#d2a8ff';
+  tbody.innerHTML += `
+  <tr>
+    <td style="font-weight:700;color:#f0f6fc">${d.m}</td>
+    <td style="text-align:center">${d.y22}</td>
+    <td style="text-align:center">${d.y23}</td>
+    <td style="text-align:center">${d.y24}</td>
+    <td style="text-align:center;font-weight:700;color:#58a6ff">${avg3}</td>
+    <td style="text-align:center;font-weight:700">
+      <span style="color:#f0f6fc">${d.avg5}</span>
+      <span style="font-size:10px;color:${dColor}"> (3yr ${diff>0?'+':''}${diff})</span>
+    </td>
+    <td style="color:${flowColor};font-size:11px">${d.flow}</td>
+    <td style="font-size:11px;color:#8b949e">${d.weekly}</td>
+    <td>${signalHtml}</td>
+  </tr>`;
+});
+
+// ════════════════════════════════════════════════════════════════
+// LIVE EIA MODULE
+// ════════════════════════════════════════════════════════════════
+
+// ── Confirmed seed data — fallback if all live sources fail ──────
+// Updated: Jun 12, 2026. Sources: EIA WNGSR + IndexBox + StoneX
+const EIA_SEED = [
+  { period:'2026-05-09', change: +85, value:2290, avg5yr:2152, yearAgo:2259, season:'Injection' },
+  { period:'2026-05-16', change:+101, value:2391, avg5yr:2240, yearAgo:2327, season:'Injection' },
+  { period:'2026-05-23', change: +92, value:2483, avg5yr:2345, yearAgo:2456, season:'Injection' },
+  { period:'2026-05-30', change: +95, value:2578, avg5yr:2440, yearAgo:2581, season:'Injection' },
+  { period:'2026-06-05', change:+108, value:2688, avg5yr:2537, yearAgo:2693, season:'Injection' },
+];
+
+let eiaHistory = [];
+let eiaChartInst = null;
+
+async function eiaSave(rows) {
+  try { await window.storage.set(EIA_STORE, JSON.stringify(rows)); } catch(e){}
+  try { localStorage.setItem(EIA_STORE, JSON.stringify(rows)); } catch(e){}
+}
+async function eiaLoad() {
+  try { const r = await window.storage.get(EIA_STORE); if(r&&r.value) return JSON.parse(r.value); } catch(e){}
+  try { const s = localStorage.getItem(EIA_STORE); if(s) return JSON.parse(s); } catch(e){}
+  return null;
+}
+
+function getSeason(period) {
+  const m = new Date(period+'T00:00:00').getMonth()+1;
+  return (m>=11||m<=3) ? 'Withdrawal' : 'Injection';
+}
+
+function eiaSignal(diff) {
+  if (diff < -200) return { cls:'bull', label:'🟢 Strong Bullish', desc: Math.abs(diff)+' Bcf below 5yr avg — tight supply' };
+  if (diff < -80)  return { cls:'bull', label:'🟢 Mild Bullish',   desc: Math.abs(diff)+' Bcf below 5yr avg' };
+  if (diff > 200)  return { cls:'bear', label:'🔴 Strong Bearish', desc: diff+' Bcf above 5yr avg — ample supply' };
+  if (diff > 80)   return { cls:'bear', label:'🔴 Mild Bearish',   desc: diff+' Bcf above 5yr avg' };
+  return { cls:'neutral', label:'🟡 Neutral', desc: 'Within ±80 Bcf of 5yr avg' };
+}
+
+function renderEIA(rows) {
+  const data = rows.slice(-4);
+
+  // Cards
+  const cardDiv = document.getElementById('eiaLiveCards');
+  if (!cardDiv) return;
+  cardDiv.innerHTML = '';
+  data.forEach((d, i) => {
+    const diff = d.value - d.avg5yr;
+    const sig  = eiaSignal(diff);
+    const diffPct = d.avg5yr > 0 ? ((diff/d.avg5yr)*100).toFixed(1) : 0;
+    const vsYA = d.yearAgo ? (d.value - d.yearAgo) : null;
+    const chgColor = d.change >= 0 ? '#e3b341' : '#79c0ff';
+    const label = i===data.length-1 ? '(latest)' : (data.length-1-i)+'w ago';
+    cardDiv.innerHTML += `
+    <div class="eia-live-card ${sig.cls}">
+      <div class="elc-date">${d.period} <span style="color:#8b949e;font-size:10px">${label}</span></div>
+      <div class="elc-change" style="color:${chgColor}">${d.change>0?'+':''}${d.change} Bcf</div>
+      <div class="elc-label">${d.season} · Net weekly change</div>
+      <div class="elc-vs">
+        <div class="elc-vs-row"><span style="color:#8b949e">Total storage</span><span style="font-weight:700">${d.value.toLocaleString()} Bcf</span></div>
+        <div class="elc-vs-row"><span style="color:#8b949e">vs 5-yr avg</span><span style="color:${diff>0?'#f85149':'#3fb950'};font-weight:700">${diff>0?'+':''}${diff} Bcf (${diffPct}%)</span></div>
+        ${vsYA!=null?`<div class="elc-vs-row"><span style="color:#8b949e">vs year ago</span><span style="color:${vsYA>0?'#f85149':'#3fb950'};font-weight:700">${vsYA>0?'+':''}${vsYA} Bcf</span></div>`:''}
+      </div>
+      <div class="elc-signal ${sig.cls}">${sig.label}</div>
+    </div>`;
+  });
+
+  // Table
+  const tbodyEl = document.getElementById('eiaLiveBody');
+  if (tbodyEl) {
+    tbodyEl.innerHTML = '';
+    data.forEach((d,i) => {
+      const diff = d.value - d.avg5yr;
+      const sig  = eiaSignal(diff);
+      const diffPct = d.avg5yr>0?((diff/d.avg5yr)*100).toFixed(1):0;
+      const vsYA = d.yearAgo ? (d.value-d.yearAgo) : null;
+      const diffCol = diff>80?'#f85149':diff<-80?'#3fb950':'#d29922';
+      tbodyEl.innerHTML += `<tr>
+        <td style="text-align:left;font-weight:700;color:#f0f6fc">${d.period}${i===data.length-1?' <span style="color:#58a6ff;font-size:10px">●</span>':''}</td>
+        <td style="font-weight:700;color:${d.change>=0?'#e3b341':'#79c0ff'}">${d.change>0?'+':''}${d.change} Bcf</td>
+        <td style="font-weight:700">${d.value.toLocaleString()}</td>
+        <td style="font-weight:700;color:${diffCol}">${diff>0?'+':''}${diff} Bcf (${diffPct}%)</td>
+        <td style="color:${vsYA&&vsYA>0?'#f85149':'#3fb950'}">${vsYA!=null?(vsYA>0?'+':'')+vsYA+' Bcf':'—'}</td>
+        <td style="color:${d.season==='Withdrawal'?'#79c0ff':'#e3b341'};font-size:11px">${d.season}</td>
+        <td><span style="color:${sig.cls==='bull'?'#3fb950':sig.cls==='bear'?'#f85149':'#d29922'};font-weight:700">${sig.label}</span></td>
+        <td><span style="color:#8b949e;font-size:11px">vs avg inject: ${d.avg5yr>0?'+'+Math.round(d.change - (i>0?(d.avg5yr-data[i-1].avg5yr):d.change)):'—'} Bcf</span></td>
+      </tr>`;
+    });
+    document.getElementById('eiaAnalysisBox').style.display='block';
+  }
+
+  // Trend summary
+  const trendBox = document.getElementById('eiaTrendBox');
+  if (trendBox && data.length >= 2) {
+    trendBox.style.display='block';
+    const trend    = data[data.length-1].value - data[0].value;
+    const avgDiff  = Math.round(data.reduce((s,d)=>s+(d.value-d.avg5yr),0)/data.length);
+    const latest   = data[data.length-1];
+    const sig4w    = eiaSignal(avgDiff);
+    const trendCol = trend>0?'#e3b341':'#79c0ff';
+    trendBox.innerHTML = `
+    <div class="eia-analysis">
+      <h3>🧠 4-Week Trend Summary & MCX Trade Implication</h3>
+      <div class="analysis-grid">
+        <div class="analysis-item">
+          <div class="ai-label">4-week storage change</div>
+          <div class="ai-val" style="color:${trendCol}">${trend>0?'+':''}${trend} Bcf</div>
+          <div class="ai-sub">${data[0].period} → ${latest.period}</div>
+        </div>
+        <div class="analysis-item">
+          <div class="ai-label">Avg deficit vs 5-yr avg</div>
+          <div class="ai-val" style="color:${avgDiff>0?'#f85149':'#3fb950'}">${avgDiff>0?'+':''}${avgDiff} Bcf</div>
+          <div class="ai-sub">${avgDiff>0?'Above avg → bearish supply':'Below avg → tight supply'}</div>
+        </div>
+        <div class="analysis-item">
+          <div class="ai-label">Current season</div>
+          <div class="ai-val" style="color:${latest.season==='Withdrawal'?'#79c0ff':'#e3b341'};font-size:18px">${latest.season}</div>
+          <div class="ai-sub">${latest.season==='Injection'?'Apr–Oct: weekly builds expected':'Nov–Mar: weekly draws expected'}</div>
+        </div>
+        <div class="analysis-item">
+          <div class="ai-label">4-week composite signal</div>
+          <div class="ai-val" style="color:${sig4w.cls==='bull'?'#3fb950':sig4w.cls==='bear'?'#f85149':'#d29922'};font-size:14px;line-height:1.4">${sig4w.label}</div>
+          <div class="ai-sub">${sig4w.desc}</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:12px;background:#21262d;border-radius:8px;font-size:12px;color:#8b949e;line-height:1.7">
+        <strong style="color:#f0f6fc">MCX Trade Implication:</strong>
+        ${avgDiff>100
+          ? ' ⚠️ Storage running <span style="color:#f85149;font-weight:700">ABOVE 5-yr avg</span>. Bears have supply tailwind. Short-side systems (Gap Down, ORB Short, Open=High) get EIA confirmation. Avoid counter-trend longs unless a cold catalyst appears.'
+          : avgDiff<-100
+          ? ' ✅ Storage running <span style="color:#3fb950;font-weight:700">BELOW 5-yr avg</span>. Bulls have supply tailwind. P4 Trend longs get additional confluence. Any cold snap or disruption is amplified. Hold longs longer; size up in withdrawal season.'
+          : ' 🟡 Storage near 5-yr average — <strong style="color:#d29922">neutral fundamental backdrop</strong>. Technical signals and seasonal bias dominate. Trade your systems normally; EIA data not providing an extra directional edge currently.'}
+      </div>
+    </div>`;
+  }
+
+  // Chart
+  const chartBox = document.getElementById('eiaChartBox');
+  if (chartBox) {
+    chartBox.style.display='block';
+    const labels   = data.map(d=>d.period.slice(5));
+    const vals     = data.map(d=>d.value);
+    const avgs     = data.map(d=>d.avg5yr);
+    const yearAgos = data.map(d=>d.yearAgo);
+    if (eiaChartInst) eiaChartInst.destroy();
+    eiaChartInst = new Chart(document.getElementById('eiaChart'), {
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {label:'Actual Storage (Bcf)',data:vals,borderColor:'#58a6ff',backgroundColor:'#58a6ff18',tension:.3,pointRadius:5,pointBackgroundColor:'#58a6ff',borderWidth:2.5,fill:true},
+          {label:'5-Yr Average',       data:avgs,borderColor:'#d29922',  borderDash:[5,4],tension:.3,pointRadius:3,borderWidth:1.5,backgroundColor:'transparent'},
+          {label:'Year Ago',           data:yearAgos,borderColor:'#bc8cff',borderDash:[3,3],tension:.3,pointRadius:3,borderWidth:1.5,backgroundColor:'transparent'},
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#8b949e',font:{size:11}}}},
+        scales:{
+          x:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#21262d'}},
+          y:{ticks:{color:'#8b949e',font:{size:11}},grid:{color:'#21262d'}}
+        }
+      }
+    });
+  }
+}
+
+async function fetchEIA() {
+  const btn = document.getElementById('eiaFetchBtn');
+  const sta = document.getElementById('eiaStatus');
+  const spn = document.getElementById('eiaSpinner');
+  if (!btn) return;
+  btn.disabled=true; spn.style.display='block';
+  sta.style.color='#8b949e';
+
+  // Strategy: try GitHub feed first (most reliable, CORS-friendly)
+  // Fallback: EIA API direct (has native CORS, but DEMO_KEY rate-limited)
+  let loaded = false;
+
+  // ── Source 1: GitHub data feed ──────────────────────────────
+  if (GITHUB_USER !== 'YOUR_GITHUB_USERNAME') {
+    try {
+      sta.textContent = 'Fetching from GitHub feed…';
+      const resp = await Promise.race([
+        fetch(EIA_GITHUB_URL + `?t=${Date.now()}`),
+        new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 8000))
+      ]);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const history = data?.history;
+      if (history && history.length >= 2) {
+        // Merge GitHub data with seed, keep latest 6
+        const byPeriod = {};
+        [...EIA_SEED, ...history].forEach(r => { byPeriod[r.period] = r; });
+        eiaHistory = Object.values(byPeriod).sort((a,b)=>a.period.localeCompare(b.period)).slice(-6);
+        await eiaSave(eiaHistory);
+        renderEIA(eiaHistory);
+        const lat = eiaHistory[eiaHistory.length-1];
+        sta.textContent = `✅ GitHub feed — week ending ${lat.period} · ${lat.change > 0 ? '+' : ''}${lat.change} Bcf`;
+        sta.style.color = '#3fb950';
+        loaded = true;
+      }
+    } catch(e) { console.warn('EIA GitHub feed failed:', e.message); }
+  }
+
+  // ── Source 2: EIA API direct (native CORS, no proxy) ───────
+  if (!loaded) {
+    try {
+      sta.textContent = 'Trying EIA API direct…';
+      const EIA_API_KEY = 'DEMO_KEY';
+      const EIA_ENDPOINT = `https://api.eia.gov/v2/natural-gas/stor/wkly/data/`
+        + `?api_key=${EIA_API_KEY}&frequency=weekly&data[0]=value`
+        + `&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=8&facets[series][]=NW2`;
+
+      const resp = await Promise.race([
+        fetch(EIA_ENDPOINT, { headers:{ 'Accept':'application/json' } }),
+        new Promise((_,rej) => setTimeout(()=>rej(new Error('EIA timeout')), 10000))
+      ]);
+      if (!resp.ok) throw new Error(`EIA HTTP ${resp.status}`);
+      const json = await resp.json();
+      const rows = json?.response?.data;
+      if (!rows || rows.length < 2) throw new Error('Empty EIA response');
+
+      const fresh = rows.slice(0,8).reverse().map(r => ({
+        period: r.period, value: Math.round(parseFloat(r.value)),
+        change: 0, avg5yr: 0, yearAgo: null, season: getSeason(r.period),
+      }));
+      for (let i=1; i<fresh.length; i++) fresh[i].change = fresh[i].value - fresh[i-1].value;
+      fresh.forEach(f => {
+        const seed = EIA_SEED.find(s => s.period === f.period);
+        if (seed) { f.avg5yr = seed.avg5yr; f.yearAgo = seed.yearAgo; }
+        else { const ls = EIA_SEED[EIA_SEED.length-1]; const wk = Math.round((new Date(f.period)-new Date(ls.period))/604800000); f.avg5yr = ls.avg5yr + wk*6; }
+      });
+      const byPeriod = {};
+      [...EIA_SEED, ...fresh].forEach(r => { byPeriod[r.period] = r; });
+      eiaHistory = Object.values(byPeriod).sort((a,b)=>a.period.localeCompare(b.period)).slice(-6);
+      await eiaSave(eiaHistory);
+      renderEIA(eiaHistory);
+      const lat = eiaHistory[eiaHistory.length-1];
+      sta.textContent = `✅ EIA API — week ending ${lat.period}`;
+      sta.style.color = '#3fb950';
+      loaded = true;
+    } catch(e) { console.warn('EIA API direct failed:', e.message); }
+  }
+
+  // ── Fallback: confirmed seed ────────────────────────────────
+  if (!loaded) {
+    eiaHistory = [...EIA_SEED];
+    renderEIA(eiaHistory);
+    const lat = EIA_SEED[EIA_SEED.length-1];
+    sta.innerHTML = `⚡ Live fetch unavailable · Confirmed seed through ${lat.period} · `
+      + `<a href="https://ir.eia.gov/ngs/ngs.html" target="_blank" style="color:#58a6ff">EIA ↗</a>`;
+    sta.style.color = '#d29922';
+  }
+
+  btn.disabled=false; spn.style.display='none';
+}
+
+// ════════════════════════════════════════════════════════════════
+// COT 4-WEEK SUMMARY — appended into existing COT section
+// ════════════════════════════════════════════════════════════════
+function renderCOT4Week(rows) {
+  const box = document.getElementById('cot4wSummary');
+  if (!box) return;
+  const data = rows.slice(-4);
+  if (data.length < 1) return;
+
+  const last  = data[data.length-1];
+  const first = data[0];
+  const mmTrend   = data.length>1 ? last.mm_net - first.mm_net : 0;
+  const oiTrend   = data.length>1 ? last.oi     - first.oi     : 0;
+  const mmTCol    = mmTrend>=0?'#3fb950':'#f85149';
+  const oiTCol    = oiTrend>=0?'#58a6ff':'#8b949e';
+  const mmExtr    = last.mm_net > 380000 ? 'extreme_long' : last.mm_net < -80000 ? 'extreme_short' : 'neutral';
+  const mmSig     = mmExtr==='extreme_long'  ? {label:'⚠️ Extreme Long — Contrarian SHORT', col:'#f85149'}
+                  : mmExtr==='extreme_short' ? {label:'✅ Extreme Short — Contrarian LONG',  col:'#3fb950'}
+                  : mmTrend>20000            ? {label:'📈 MM Longs Increasing',              col:'#3fb950'}
+                  : mmTrend<-20000           ? {label:'📉 MM Longs Decreasing',               col:'#f85149'}
+                  : {label:'🟡 No Strong Signal', col:'#d29922'};
+
+  box.innerHTML = `
+  <div class="cot-history">
+    <h3>📊 Last ${data.length} Weeks — COT Positions at a Glance</h3>
+    <div class="heatmap-wrap">
+    <table class="cot-table">
+      <thead><tr>
+        <th style="text-align:left">Report Date</th>
+        <th>MM Long</th><th>MM Short</th>
+        <th>MM Net</th><th>WoW Δ</th>
+        <th>SD Net</th><th>PM Net</th>
+        <th>Open Interest</th><th>Signal</th>
+      </tr></thead>
+      <tbody>
+        ${data.map((d,i)=>{
+          const cCol=d.mm_net_chg>0?'#3fb950':d.mm_net_chg<0?'#f85149':'#8b949e';
+          const nCol=d.mm_net>250000?'#e3b341':d.mm_net>0?'#3fb950':'#f85149';
+          const sig=d.mm_net>380000?'<span style="color:#f85149">⚠️ Extreme Long</span>'
+                   :d.mm_net<-80000?'<span style="color:#3fb950">✅ Ext. Short</span>'
+                   :d.mm_net>0?'<span style="color:#3fb950">Net Long</span>'
+                   :'<span style="color:#f85149">Net Short</span>';
+          return `<tr>
+            <td class="wk-label">${d.reportDate}${i===data.length-1?' <span style="color:#58a6ff;font-size:10px">●</span>':''}</td>
+            <td style="color:#3fb950">${Number(d.mm_l).toLocaleString()}</td>
+            <td style="color:#f85149">${Number(d.mm_s).toLocaleString()}</td>
+            <td style="color:${nCol};font-weight:700">${Number(d.mm_net).toLocaleString()}</td>
+            <td style="color:${cCol}">${d.mm_net_chg!=null?(d.mm_net_chg>0?'+':'')+Number(d.mm_net_chg).toLocaleString():'—'}</td>
+            <td style="color:${d.sd_net<-1500000?'#f85149':'#8b949e'}">${(d.sd_net/1000000).toFixed(2)}M</td>
+            <td>${(d.pm_net/1000000).toFixed(2)}M</td>
+            <td>${Number(d.oi).toLocaleString()}</td>
+            <td>${sig}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="eia-analysis" style="margin-top:12px">
+    <h3>🧠 COT 4-Week Trend Analysis & MCX Trade Signal</h3>
+    <div class="analysis-grid">
+      <div class="analysis-item">
+        <div class="ai-label">MM Net 4-week change</div>
+        <div class="ai-val" style="color:${mmTCol}">${mmTrend>0?'+':''}${Number(mmTrend).toLocaleString()}</div>
+        <div class="ai-sub">${mmTrend>0?'Speculators adding longs':'Speculators reducing longs / adding shorts'}</div>
+      </div>
+      <div class="analysis-item">
+        <div class="ai-label">Current MM Net</div>
+        <div class="ai-val" style="color:${last.mm_net>0?'#3fb950':'#f85149'}">${Number(last.mm_net).toLocaleString()}</div>
+        <div class="ai-sub">${Math.abs(last.mm_net)>300000?'⚠️ Historic extreme — reversal risk':'Within normal range'}</div>
+      </div>
+      <div class="analysis-item">
+        <div class="ai-label">OI trend (4 weeks)</div>
+        <div class="ai-val" style="color:${oiTCol}">${oiTrend>0?'+':''}${(oiTrend/1000).toFixed(0)}K contracts</div>
+        <div class="ai-sub">${oiTrend>0?'New positions opening — conviction':'Positions closing — liquidation'}</div>
+      </div>
+      <div class="analysis-item">
+        <div class="ai-label">Composite COT signal</div>
+        <div class="ai-val" style="color:${mmSig.col};font-size:12px;line-height:1.4">${mmSig.label}</div>
+        <div class="ai-sub">SD Net: ${(last.sd_net/1000000).toFixed(2)}M ${last.sd_net<-2000000?'(heavy hedge wall)':'(normal)'}</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:12px;background:#21262d;border-radius:8px;font-size:12px;color:#8b949e;line-height:1.7">
+      <strong style="color:#f0f6fc">MCX Portfolio Signal:</strong>
+      ${mmExtr==='extreme_long'
+        ? ' ⚠️ Speculators at <span style="color:#f85149;font-weight:700">extreme net-long</span> — crowded trade vulnerable to sharp liquidation. Prioritise short-side systems: ORB Short, Gap Down, Open=High SHORT. Reduce P4 Trend long size; tighten stops.'
+        : mmExtr==='extreme_short'
+        ? ' ✅ Speculators at <span style="color:#3fb950;font-weight:700">extreme net-short</span> — forced covering can spike prices. Favour long systems: P4 Trend, NYMEX regime LONGs. Wider targets; add on dips.'
+        : mmTrend>20000
+        ? ' 📈 Speculators are <span style="color:#3fb950;font-weight:700">adding longs</span> — trend confirmation for long systems. P4 Trend gets positioning tailwind. Hold longs to full target; manage shorts tightly.'
+        : mmTrend<-20000
+        ? ' 📉 Speculators are <span style="color:#f85149;font-weight:700">reducing longs</span> — trend confirmation for short systems. ORB Short and Gap Down get positioning tailwind. Avoid new longs; trail stops on existing longs.'
+        : ' 🟡 COT not providing a strong directional edge this week. Trade systems per normal rules. Check back Friday after next COT release.'}
+    </div>
+  </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// AUTO-SCHEDULE (Thursday EIA · Friday COT)
+// ════════════════════════════════════════════════════════════════
+function scheduleAutoFetches() {
+  const now = new Date();
+  const ist = new Date(now.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+  const day = ist.getDay(), h = ist.getHours(), m = ist.getMinutes();
+
+  // Thu after 20:05 IST → auto-fetch EIA
+  if (day===4 && (h>20||(h===20&&m>=5))) {
+    const key='eia_auto_'+ist.toDateString();
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key,'1');
+      setTimeout(fetchEIA, 1500);
+    }
+  }
+
+  // Fri after 02:05 IST → auto-fetch COT
+  if (day===5 && (h>2||(h===2&&m>=5))) {
+    const key='cot_auto_'+ist.toDateString();
+    if (!localStorage.getItem(key) && typeof fetchCOT==='function') {
+      localStorage.setItem(key,'1');
+      setTimeout(fetchCOT, 2500);
+    }
+  }
+}
+
+// ── INIT ────────────────────────────────────────────────────────
+(async ()=>{
+  // Clear all old localStorage keys from previous versions
+  ['ng_eia_live_v1','ng_eia_live_v2','ng_cot_history_v1','ng_cot_history_v2']
+    .forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
+
+  // EIA: load from v3 cache or seed
+  const eiaSaved = await eiaLoad();
+  const seedLatest = EIA_SEED[EIA_SEED.length-1].period;
+  const cacheLatest = eiaSaved && eiaSaved.length ? eiaSaved[eiaSaved.length-1].period : '';
+  eiaHistory = (eiaSaved && eiaSaved.length && cacheLatest >= seedLatest) ? eiaSaved : [...EIA_SEED];
+  renderEIA(eiaHistory);
+  const eiaSta = document.getElementById('eiaStatus');
+  if (eiaSta) {
+    const lat = eiaHistory[eiaHistory.length-1];
+    eiaSta.textContent = 'Latest: ' + lat.period + ' (+' + lat.change + ' Bcf)';
+    eiaSta.style.color = '#8b949e';
+  }
+
+  // COT: load from v3 cache or 4-week seed
+  const cotSaved = await cotLoad();
+  const cotSeedLatest = COT_SEED[COT_SEED.length-1].reportDate;
+  const cotCacheLatest = cotSaved && cotSaved.length ? cotSaved[cotSaved.length-1].reportDate : '';
+  cotHistory = (cotSaved && cotSaved.length && cotCacheLatest >= cotSeedLatest)
+    ? cotSaved
+    : [...COT_SEED];
+  // Render COT if the section is active or pre-render for when it's opened
+  if (typeof renderCOT === 'function') renderCOT();
+
+  // Inject COT 4-week summary div
+  const cotSec = document.getElementById('cot');
+  if (cotSec && !document.getElementById('cot4wSummary')) {
+    const d=document.createElement('div'); d.id='cot4wSummary';
+    cotSec.appendChild(d);
+  }
+  renderCOT4Week(cotHistory);
+
+  // Run scheduler now + every 30 min
+  scheduleAutoFetches();
+  setInterval(scheduleAutoFetches, 30*60*1000);
+})();
+</script>
+</body>
+</html>
