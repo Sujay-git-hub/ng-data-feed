@@ -1,0 +1,110 @@
+name: Fetch NG Market Data
+
+on:
+  schedule:
+    # EIA releases Thursday 10:30 AM ET = 8:00 PM IST = 14:30 UTC
+    # Run at 15:00 UTC Thursday (8:30 PM IST) — 30 min after release
+    - cron: '0 15 * * 4'
+
+    # COT releases Friday 3:30 PM ET = 1:00 AM IST Saturday = 19:30 UTC Friday
+    # Run at 20:00 UTC Friday (1:30 AM IST Saturday) — 30 min after release
+    - cron: '0 20 * * 5'
+
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      fetch_type:
+        description: 'What to fetch'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - eia_only
+          - cot_only
+
+jobs:
+  fetch-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit JSON files back to repo
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Determine what to fetch
+        id: what
+        run: |
+          # Check if manually triggered
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "fetch_type=${{ inputs.fetch_type }}" >> $GITHUB_OUTPUT
+          else
+            # Determine by day of week (4=Thu, 5=Fri)
+            DOW=$(date -u +%u)
+            if [ "$DOW" = "4" ]; then
+              echo "fetch_type=eia_only" >> $GITHUB_OUTPUT
+            elif [ "$DOW" = "5" ]; then
+              echo "fetch_type=cot_only" >> $GITHUB_OUTPUT
+            else
+              echo "fetch_type=both" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Fetch EIA storage data
+        if: steps.what.outputs.fetch_type == 'eia_only' || steps.what.outputs.fetch_type == 'both'
+        env:
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY || 'DEMO_KEY' }}
+        run: |
+          echo "Running EIA fetcher..."
+          python fetch_eia.py
+          echo "EIA fetch complete."
+
+      - name: Fetch CFTC COT data
+        if: steps.what.outputs.fetch_type == 'cot_only' || steps.what.outputs.fetch_type == 'both'
+        run: |
+          echo "Running COT fetcher..."
+          python fetch_cot.py
+          echo "COT fetch complete."
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git diff --quiet data/ && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit and push updated data
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name  "ng-data-bot"
+          git config user.email "ng-data-bot@users.noreply.github.com"
+          git add data/
+          
+          # Build commit message
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+          FILES=$(git diff --cached --name-only | tr '\n' ' ')
+          git commit -m "data: auto-update ${FILES}[${TIMESTAMP}]"
+          git push
+
+      - name: No changes detected
+        if: steps.changes.outputs.changed == 'false'
+        run: echo "Data already up to date — no commit needed."
+
+      - name: Summary
+        run: |
+          echo "## Fetch Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f data/eia_data.json ]; then
+            LATEST=$(python -c "import json; d=json.load(open('data/eia_data.json')); h=d['history']; l=h[-1]; print(f\"EIA latest: {l['period']} | Change: {l['change']:+,} Bcf | Total: {l['value']:,} Bcf | vs 5yr: {l['vsAvg']:+,} Bcf\")")
+            echo "**$LATEST**" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ -f data/cot_data.json ]; then
+            LATEST=$(python -c "import json; d=json.load(open('data/cot_data.json')); h=d['history']; l=h[-1]; print(f\"COT latest: {l['reportDate']} | MM Net: {l['mm_net']:+,} | OI: {l['oi']:,}\")")
+            echo "**$LATEST**" >> $GITHUB_STEP_SUMMARY
+          fi
