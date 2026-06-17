@@ -77,14 +77,14 @@ jobs:
       - name: Check for changes
         id: changes
         run: |
-          git diff --quiet data/ && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+          git diff --quiet -- cot_data.json eia_data.json && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push updated data
         if: steps.changes.outputs.changed == 'true'
         run: |
           git config user.name  "ng-data-bot"
           git config user.email "ng-data-bot@users.noreply.github.com"
-          git add data/
+          git add cot_data.json eia_data.json
           
           # Build commit message
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
@@ -100,11 +100,11 @@ jobs:
         run: |
           echo "## Fetch Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f data/eia_data.json ]; then
-            LATEST=$(python -c "import json; d=json.load(open('data/eia_data.json')); h=d['history']; l=h[-1]; print(f\"EIA latest: {l['period']} | Change: {l['change']:+,} Bcf | Total: {l['value']:,} Bcf | vs 5yr: {l['vsAvg']:+,} Bcf\")")
+          if [ -f eia_data.json ]; then
+            LATEST=$(python -c "import json; d=json.load(open('eia_data.json')); h=d['history']; l=h[-1]; print(f\"EIA latest: {l['period']} | Change: {l['change']:+,} Bcf | Total: {l['value']:,} Bcf | vs 5yr: {l['vsAvg']:+,} Bcf\")")
             echo "**$LATEST**" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ -f data/cot_data.json ]; then
-            LATEST=$(python -c "import json; d=json.load(open('data/cot_data.json')); h=d['history']; l=h[-1]; print(f\"COT latest: {l['reportDate']} | MM Net: {l['mm_net']:+,} | OI: {l['oi']:,}\")")
+          if [ -f cot_data.json ]; then
+            LATEST=$(python -c "import json; d=json.load(open('cot_data.json')); h=d['history']; l=h[-1]; print(f\"COT latest: {l['reportDate']} | MM Net: {l['mm_net']:+,} | OI: {l['oi']:,}\")")
             echo "**$LATEST**" >> $GITHUB_STEP_SUMMARY
           fi
