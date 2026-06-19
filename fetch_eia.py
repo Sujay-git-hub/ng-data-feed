@@ -63,8 +63,8 @@ def get_5yr_avg(period: str) -> int:
         return 0
 
 
-def fetch_eia_series(series_id: str, length: int = 14) -> list:
-    """Fetch a series from EIA API v2."""
+def fetch_eia_series(series_id: str, length: int = 14, verbose: bool = True) -> list:
+    """Fetch a series from EIA API v2. Prints diagnostics on failure."""
     url = (
         f"https://api.eia.gov/v2/natural-gas/stor/wkly/data/"
         f"?api_key={EIA_API_KEY}"
@@ -76,9 +76,27 @@ def fetch_eia_series(series_id: str, length: int = 14) -> list:
         f"&length={length}"
         f"&facets[series][]={series_id}"
     )
+    if verbose:
+        print(f"  Request URL: {url}")
+
     req = urllib.request.Request(url, headers={'Accept': 'application/json'})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        data = json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            status = r.status
+            body   = r.read()
+    except urllib.error.HTTPError as e:
+        body = e.read()
+        print(f"  HTTP Error {e.code}: {body.decode('utf-8', errors='replace')[:500]}")
+        raise
+
+    data = json.loads(body)
+    if verbose:
+        print(f"  HTTP {status} | Response keys: {list(data.keys())}")
+        if 'response' in data:
+            print(f"  Response.data length: {len(data['response'].get('data', []))}")
+        if 'error' in data:
+            print(f"  API ERROR: {data['error']}")
+
     rows = data.get('response', {}).get('data', [])
     return rows
 
@@ -110,12 +128,34 @@ def main():
     print(f"API key: {'custom' if EIA_API_KEY != 'DEMO_KEY' else 'DEMO_KEY'}")
     print("=" * 60)
 
-    # Fetch current storage (NW2 = Lower 48 total working gas)
-    print("Fetching NW2 (Lower 48 total storage)...")
-    rows = fetch_eia_series('NW2', length=14)
+    # Fetch current storage — Lower 48 total working gas
+    # The v2 API facet value for this dataset's 'series' facet has been
+    # inconsistent in documentation. Try known candidates in order.
+    SERIES_CANDIDATES = ['NW2_EPG0_SWO_R48_BCF', 'NW2', 'R48']
+    rows = []
+    for candidate in SERIES_CANDIDATES:
+        print(f"Trying series ID: {candidate}")
+        try:
+            rows = fetch_eia_series(candidate, length=14)
+        except Exception as e:
+            print(f"  Exception: {e}")
+            rows = []
+        if rows:
+            print(f"  ✓ Success with series ID '{candidate}' — {len(rows)} rows")
+            break
+        else:
+            print(f"  ✗ Empty result for '{candidate}'")
+
     if not rows:
-        print("ERROR: No data returned from EIA API")
-        sys.exit(1)
+        print("\nERROR: No data returned from EIA API with any series ID candidate.")
+        print("Possible causes:")
+        print("  1. DEMO_KEY rate limit exhausted (1000 req/day, shared globally)")
+        print("  2. Series facet value has changed — check https://api.eia.gov/v2/natural-gas/stor/wkly/")
+        print("  3. EIA API endpoint structure changed")
+        print("\nExisting eia_data.json left untouched. Dashboard will keep showing last known data.")
+        # Exit 0 (not 1) so this doesn't block the COT step or fail the whole workflow run.
+        # The existing committed eia_data.json simply won't be updated this cycle.
+        sys.exit(0)
 
     # Sort oldest→newest
     rows_sorted = sorted(rows, key=lambda r: r['period'])
@@ -142,7 +182,7 @@ def main():
     # Try to get year-ago values — fetch same series from ~52 weeks ago
     try:
         print("Fetching year-ago data...")
-        old_rows = fetch_eia_series('NW2', length=70)  # Get ~14 months
+        old_rows = fetch_eia_series(candidate, length=70, verbose=False)  # reuse the series ID that worked, ~14 months
         year_ago_map = {r['period']: round(float(r.get('value', 0) or 0)) for r in old_rows}
 
         for rec in new_records:
