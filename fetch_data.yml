@@ -3,12 +3,16 @@ name: Fetch NG Market Data
 on:
   schedule:
     # EIA releases Thursday 10:30 AM ET = 8:00 PM IST = 14:30 UTC
-    # Run at 15:00 UTC Thursday (8:30 PM IST) — 30 min after release
-    - cron: '0 15 * * 4'
+    # Primary run: 15:07 UTC Thursday (8:37 PM IST) — offset from :00 to avoid GH Actions congestion
+    - cron: '7 15 * * 4'
+    # Backup run: 16:07 UTC Thursday (9:37 PM IST) — catches it if primary was delayed/skipped
+    - cron: '7 16 * * 4'
 
     # COT releases Friday 3:30 PM ET = 1:00 AM IST Saturday = 19:30 UTC Friday
-    # Run at 20:00 UTC Friday (1:30 AM IST Saturday) — 30 min after release
-    - cron: '0 20 * * 5'
+    # Primary run: 20:12 UTC Friday (1:42 AM IST Saturday)
+    - cron: '12 20 * * 5'
+    # Backup run: 21:12 UTC Friday (2:42 AM IST Saturday)
+    - cron: '12 21 * * 5'
 
   # Allow manual trigger from GitHub Actions tab
   workflow_dispatch:
@@ -60,6 +64,7 @@ jobs:
 
       - name: Fetch EIA storage data
         if: steps.what.outputs.fetch_type == 'eia_only' || steps.what.outputs.fetch_type == 'both'
+        continue-on-error: true
         env:
           EIA_API_KEY: ${{ secrets.EIA_API_KEY || 'DEMO_KEY' }}
         run: |
@@ -77,14 +82,14 @@ jobs:
       - name: Check for changes
         id: changes
         run: |
-          git diff --quiet data/ && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
+          git diff --quiet -- cot_data.json eia_data.json && echo "changed=false" >> $GITHUB_OUTPUT || echo "changed=true" >> $GITHUB_OUTPUT
 
       - name: Commit and push updated data
         if: steps.changes.outputs.changed == 'true'
         run: |
           git config user.name  "ng-data-bot"
           git config user.email "ng-data-bot@users.noreply.github.com"
-          git add data/
+          git add cot_data.json eia_data.json
           
           # Build commit message
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
@@ -100,11 +105,11 @@ jobs:
         run: |
           echo "## Fetch Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f data/eia_data.json ]; then
-            LATEST=$(python -c "import json; d=json.load(open('data/eia_data.json')); h=d['history']; l=h[-1]; print(f\"EIA latest: {l['period']} | Change: {l['change']:+,} Bcf | Total: {l['value']:,} Bcf | vs 5yr: {l['vsAvg']:+,} Bcf\")")
+          if [ -f eia_data.json ]; then
+            LATEST=$(python -c "import json; d=json.load(open('eia_data.json')); h=d['history']; l=h[-1]; print(f\"EIA latest: {l['period']} | Change: {l['change']:+,} Bcf | Total: {l['value']:,} Bcf | vs 5yr: {l['vsAvg']:+,} Bcf\")")
             echo "**$LATEST**" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ -f data/cot_data.json ]; then
-            LATEST=$(python -c "import json; d=json.load(open('data/cot_data.json')); h=d['history']; l=h[-1]; print(f\"COT latest: {l['reportDate']} | MM Net: {l['mm_net']:+,} | OI: {l['oi']:,}\")")
+          if [ -f cot_data.json ]; then
+            LATEST=$(python -c "import json; d=json.load(open('cot_data.json')); h=d['history']; l=h[-1]; print(f\"COT latest: {l['reportDate']} | MM Net: {l['mm_net']:+,} | OI: {l['oi']:,}\")")
             echo "**$LATEST**" >> $GITHUB_STEP_SUMMARY
           fi
