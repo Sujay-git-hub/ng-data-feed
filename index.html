@@ -960,7 +960,7 @@ const EIA_GITHUB_URL = `${GITHUB_RAW}/eia_data.json`;
 
 const COT_NG    = '023391';
 const COT_STORE = 'ng_cot_history_v3';
-const EIA_STORE = 'ng_eia_live_v3';
+const EIA_STORE = 'ng_eia_live_v4';
 
 // ── Confirmed seed — fallback if GitHub fetch fails ─────────────
 const COT_SEED = [
@@ -1739,14 +1739,62 @@ async function fetchEIA() {
   btn.disabled=true; spn.style.display='block';
   sta.style.color='#8b949e';
 
-  // Strategy: try GitHub feed first (most reliable, CORS-friendly)
-  // Fallback: EIA API direct (has native CORS, but DEMO_KEY rate-limited)
+  // Strategy: try EIA API direct FIRST (freshest possible source, real key configured).
+  // Fall back to GitHub feed (may be stale — depends on manual updates).
+  // Final fallback: confirmed seed baked into this file.
   let loaded = false;
 
-  // ── Source 1: GitHub data feed ──────────────────────────────
-  if (GITHUB_USER !== 'YOUR_GITHUB_USERNAME') {
+  // ── Source 1: EIA API direct (native CORS, no proxy) ────────
+  try {
+    sta.textContent = 'Fetching live from EIA API…';
+    const EIA_API_KEY = 'ICCIapIM2nUubFMsGEHf6OcfLk1qfaF6qd2gdHSl';
+    if (EIA_API_KEY === 'YOUR_EIA_API_KEY_HERE') {
+      throw new Error('No EIA API key configured — get one free at eia.gov/opendata/register.php');
+    }
+    const EIA_ENDPOINT = `https://api.eia.gov/v2/natural-gas/stor/wkly/data/`
+      + `?api_key=${EIA_API_KEY}&frequency=weekly&data[0]=value`
+      + `&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=8&facets[series][]=NW2`;
+
+    const resp = await Promise.race([
+      fetch(EIA_ENDPOINT, { headers:{ 'Accept':'application/json' } }),
+      new Promise((_,rej) => setTimeout(()=>rej(new Error('EIA timeout')), 10000))
+    ]);
+    const json = await resp.json().catch(() => null);
+    if (!resp.ok) {
+      const apiErr = json?.error || json?.message || `HTTP ${resp.status}`;
+      throw new Error(`EIA API: ${apiErr}`);
+    }
+    const rows = json?.response?.data;
+    if (!rows || rows.length < 2) throw new Error('EIA API returned no data — check route/facets');
+
+    const fresh = rows.slice(0,8).reverse().map(r => ({
+      period: r.period, value: Math.round(parseFloat(r.value)),
+      change: 0, avg5yr: 0, yearAgo: null, season: getSeason(r.period),
+    }));
+    for (let i=1; i<fresh.length; i++) fresh[i].change = fresh[i].value - fresh[i-1].value;
+    fresh.forEach(f => {
+      const seed = EIA_SEED.find(s => s.period === f.period);
+      if (seed) { f.avg5yr = seed.avg5yr; f.yearAgo = seed.yearAgo; }
+      else { const ls = EIA_SEED[EIA_SEED.length-1]; const wk = Math.round((new Date(f.period)-new Date(ls.period))/604800000); f.avg5yr = ls.avg5yr + wk*6; }
+    });
+    const byPeriod = {};
+    [...EIA_SEED, ...fresh].forEach(r => { byPeriod[r.period] = r; });
+    eiaHistory = Object.values(byPeriod).sort((a,b)=>a.period.localeCompare(b.period)).slice(-6);
+    await eiaSave(eiaHistory);
+    renderEIA(eiaHistory);
+    const lat = eiaHistory[eiaHistory.length-1];
+    sta.textContent = `✅ EIA API (live) — week ending ${lat.period} · ${lat.change > 0 ? '+' : ''}${lat.change} Bcf`;
+    sta.style.color = '#3fb950';
+    loaded = true;
+  } catch(e) {
+    console.warn('EIA API direct failed:', e.message);
+    window._lastEiaApiError = e.message;
+  }
+
+  // ── Source 2: GitHub data feed (fallback — may be stale) ────
+  if (!loaded && GITHUB_USER !== 'YOUR_GITHUB_USERNAME') {
     try {
-      sta.textContent = 'Fetching from GitHub feed…';
+      sta.textContent = 'EIA API unavailable — trying GitHub feed…';
       const resp = await Promise.race([
         fetch(EIA_GITHUB_URL + `?t=${Date.now()}`),
         new Promise((_,rej) => setTimeout(()=>rej(new Error('timeout')), 8000))
@@ -1755,68 +1803,17 @@ async function fetchEIA() {
       const data = await resp.json();
       const history = data?.history;
       if (history && history.length >= 2) {
-        // Merge GitHub data with seed, keep latest 6
         const byPeriod = {};
         [...EIA_SEED, ...history].forEach(r => { byPeriod[r.period] = r; });
         eiaHistory = Object.values(byPeriod).sort((a,b)=>a.period.localeCompare(b.period)).slice(-6);
         await eiaSave(eiaHistory);
         renderEIA(eiaHistory);
         const lat = eiaHistory[eiaHistory.length-1];
-        sta.textContent = `✅ GitHub feed — week ending ${lat.period} · ${lat.change > 0 ? '+' : ''}${lat.change} Bcf`;
-        sta.style.color = '#3fb950';
+        sta.textContent = `⚠️ GitHub feed (may be stale) — week ending ${lat.period} · ${lat.change > 0 ? '+' : ''}${lat.change} Bcf`;
+        sta.style.color = '#d29922';
         loaded = true;
       }
     } catch(e) { console.warn('EIA GitHub feed failed:', e.message); }
-  }
-
-  // ── Source 2: EIA API direct (native CORS, no proxy) ───────
-  if (!loaded) {
-    try {
-      sta.textContent = 'Trying EIA API direct…';
-      // ⚠️ EIA API key — registered at eia.gov/opendata/register.php
-      const EIA_API_KEY = 'ICCIapIM2nUubFMsGEHf6OcfLk1qfaF6qd2gdHSl';
-      if (EIA_API_KEY === 'YOUR_EIA_API_KEY_HERE') {
-        throw new Error('No EIA API key configured — get one free at eia.gov/opendata/register.php');
-      }
-      const EIA_ENDPOINT = `https://api.eia.gov/v2/natural-gas/stor/wkly/data/`
-        + `?api_key=${EIA_API_KEY}&frequency=weekly&data[0]=value`
-        + `&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=8&facets[series][]=NW2`;
-
-      const resp = await Promise.race([
-        fetch(EIA_ENDPOINT, { headers:{ 'Accept':'application/json' } }),
-        new Promise((_,rej) => setTimeout(()=>rej(new Error('EIA timeout')), 10000))
-      ]);
-      const json = await resp.json().catch(() => null);
-      if (!resp.ok) {
-        const apiErr = json?.error || json?.message || `HTTP ${resp.status}`;
-        throw new Error(`EIA API: ${apiErr}`);
-      }
-      const rows = json?.response?.data;
-      if (!rows || rows.length < 2) throw new Error('EIA API returned no data — check route/facets');
-
-      const fresh = rows.slice(0,8).reverse().map(r => ({
-        period: r.period, value: Math.round(parseFloat(r.value)),
-        change: 0, avg5yr: 0, yearAgo: null, season: getSeason(r.period),
-      }));
-      for (let i=1; i<fresh.length; i++) fresh[i].change = fresh[i].value - fresh[i-1].value;
-      fresh.forEach(f => {
-        const seed = EIA_SEED.find(s => s.period === f.period);
-        if (seed) { f.avg5yr = seed.avg5yr; f.yearAgo = seed.yearAgo; }
-        else { const ls = EIA_SEED[EIA_SEED.length-1]; const wk = Math.round((new Date(f.period)-new Date(ls.period))/604800000); f.avg5yr = ls.avg5yr + wk*6; }
-      });
-      const byPeriod = {};
-      [...EIA_SEED, ...fresh].forEach(r => { byPeriod[r.period] = r; });
-      eiaHistory = Object.values(byPeriod).sort((a,b)=>a.period.localeCompare(b.period)).slice(-6);
-      await eiaSave(eiaHistory);
-      renderEIA(eiaHistory);
-      const lat = eiaHistory[eiaHistory.length-1];
-      sta.textContent = `✅ EIA API — week ending ${lat.period}`;
-      sta.style.color = '#3fb950';
-      loaded = true;
-    } catch(e) {
-      console.warn('EIA API direct failed:', e.message);
-      window._lastEiaApiError = e.message;
-    }
   }
 
   // ── Fallback: confirmed seed ────────────────────────────────
@@ -1961,7 +1958,7 @@ function scheduleAutoFetches() {
 // ── INIT ────────────────────────────────────────────────────────
 (async ()=>{
   // Clear all old localStorage keys from previous versions
-  ['ng_eia_live_v1','ng_eia_live_v2','ng_cot_history_v1','ng_cot_history_v2']
+  ['ng_eia_live_v1','ng_eia_live_v2','ng_eia_live_v3','ng_cot_history_v1','ng_cot_history_v2']
     .forEach(k => { try { localStorage.removeItem(k); } catch(e){} });
 
   // EIA: load from v3 cache or seed
