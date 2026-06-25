@@ -878,7 +878,7 @@
   <div class="schedule-box">
     <div class="icon">⏰</div>
     <div>
-      <strong>Auto-fetch schedule:</strong> EIA data fetches automatically every <strong>Thursday after 8:05 PM IST</strong>. COT data fetches every <strong>Friday after 2:05 AM IST</strong>. Both are attempted once per day and cached in your browser. If live fetch fails, confirmed seed data is shown (updated manually each week). Click <strong>Refresh</strong> to force a fetch at any time. Latest confirmed EIA: <strong>+108 Bcf — week ending Jun 5, 2026</strong> · Storage 2,688 Bcf · 151 Bcf above 5yr avg · <span style="color:#f85149;font-weight:600">Strong Bearish</span>
+      <strong>Auto-fetch schedule:</strong> EIA data fetches automatically every <strong>Thursday after 8:05 PM IST</strong>. COT data fetches every <strong>Friday after 2:05 AM IST</strong>. Both are attempted once per day and cached in your browser. If live fetch fails, confirmed seed data is shown (updated manually each week). Click <strong>Refresh</strong> to force a fetch at any time. Latest confirmed EIA: <strong>+76 Bcf — week ending Jun 19, 2026</strong> · Storage 2,835 Bcf · 151 Bcf above 5yr avg · <span style="color:#f85149;font-weight:600">Strong Bearish</span> · Verify at <a href="https://in.investing.com/economic-calendar/natural-gas-storage-386" target="_blank" style="color:#58a6ff">Investing.com Economic Calendar ↗</a>
     </div>
   </div>
 
@@ -886,7 +886,7 @@
   <div style="background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 20px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
     <div>
       <div style="font-size:14px;font-weight:700;color:#f0f6fc;">EIA Weekly Natural Gas Storage — Last 4 Weeks</div>
-      <div style="font-size:11px;color:#8b949e;margin-top:2px;">Source: EIA API · Lower 48 States · Working Gas (Bcf) · Releases every Thursday 8 PM IST</div>
+      <div style="font-size:11px;color:#8b949e;margin-top:2px;">Source: GitHub feed (or EIA API direct, once key is set) · Lower 48 States · Working Gas (Bcf) · Releases every Thursday 8 PM IST</div>
     </div>
     <div style="display:flex;align-items:center;gap:12px;">
       <span style="font-size:11px;color:#8b949e;" id="eiaStatus">Not fetched</span>
@@ -1565,13 +1565,16 @@ storageData.forEach(d => {
 // ════════════════════════════════════════════════════════════════
 
 // ── Confirmed seed data — fallback if all live sources fail ──────
-// Updated: Jun 12, 2026. Sources: EIA WNGSR + IndexBox + StoneX
+// Updated: Jun 25, 2026. Sources: EIA WNGSR + Investing.com Economic Calendar
+// (https://in.investing.com/economic-calendar/natural-gas-storage-386)
 const EIA_SEED = [
   { period:'2026-05-09', change: +85, value:2290, avg5yr:2152, yearAgo:2259, season:'Injection' },
   { period:'2026-05-16', change:+101, value:2391, avg5yr:2240, yearAgo:2327, season:'Injection' },
   { period:'2026-05-23', change: +92, value:2483, avg5yr:2345, yearAgo:2456, season:'Injection' },
   { period:'2026-05-30', change: +95, value:2578, avg5yr:2440, yearAgo:2581, season:'Injection' },
   { period:'2026-06-05', change:+108, value:2688, avg5yr:2537, yearAgo:2693, season:'Injection' },
+  { period:'2026-06-12', change: +73, value:2759, avg5yr:2608, yearAgo:2788, season:'Injection' },
+  { period:'2026-06-19', change: +76, value:2835, avg5yr:2684, yearAgo:2864, season:'Injection' },
 ];
 
 let eiaHistory = [];
@@ -1770,7 +1773,11 @@ async function fetchEIA() {
   if (!loaded) {
     try {
       sta.textContent = 'Trying EIA API direct…';
-      const EIA_API_KEY = 'DEMO_KEY';
+      // ⚠️ EIA API key — registered at eia.gov/opendata/register.php
+      const EIA_API_KEY = 'ICCIapIM2nUubFMsGEHf6OcfLk1qfaF6qd2gdHSl';
+      if (EIA_API_KEY === 'YOUR_EIA_API_KEY_HERE') {
+        throw new Error('No EIA API key configured — get one free at eia.gov/opendata/register.php');
+      }
       const EIA_ENDPOINT = `https://api.eia.gov/v2/natural-gas/stor/wkly/data/`
         + `?api_key=${EIA_API_KEY}&frequency=weekly&data[0]=value`
         + `&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=8&facets[series][]=NW2`;
@@ -1779,10 +1786,13 @@ async function fetchEIA() {
         fetch(EIA_ENDPOINT, { headers:{ 'Accept':'application/json' } }),
         new Promise((_,rej) => setTimeout(()=>rej(new Error('EIA timeout')), 10000))
       ]);
-      if (!resp.ok) throw new Error(`EIA HTTP ${resp.status}`);
-      const json = await resp.json();
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        const apiErr = json?.error || json?.message || `HTTP ${resp.status}`;
+        throw new Error(`EIA API: ${apiErr}`);
+      }
       const rows = json?.response?.data;
-      if (!rows || rows.length < 2) throw new Error('Empty EIA response');
+      if (!rows || rows.length < 2) throw new Error('EIA API returned no data — check route/facets');
 
       const fresh = rows.slice(0,8).reverse().map(r => ({
         period: r.period, value: Math.round(parseFloat(r.value)),
@@ -1803,7 +1813,10 @@ async function fetchEIA() {
       sta.textContent = `✅ EIA API — week ending ${lat.period}`;
       sta.style.color = '#3fb950';
       loaded = true;
-    } catch(e) { console.warn('EIA API direct failed:', e.message); }
+    } catch(e) {
+      console.warn('EIA API direct failed:', e.message);
+      window._lastEiaApiError = e.message;
+    }
   }
 
   // ── Fallback: confirmed seed ────────────────────────────────
@@ -1811,8 +1824,10 @@ async function fetchEIA() {
     eiaHistory = [...EIA_SEED];
     renderEIA(eiaHistory);
     const lat = EIA_SEED[EIA_SEED.length-1];
-    sta.innerHTML = `⚡ Live fetch unavailable · Confirmed seed through ${lat.period} · `
-      + `<a href="https://ir.eia.gov/ngs/ngs.html" target="_blank" style="color:#58a6ff">EIA ↗</a>`;
+    const apiErrMsg = window._lastEiaApiError ? ` (${window._lastEiaApiError})` : '';
+    sta.innerHTML = `⚡ Live fetch unavailable${apiErrMsg} · Confirmed seed through ${lat.period} · `
+      + `<a href="https://in.investing.com/economic-calendar/natural-gas-storage-386" target="_blank" style="color:#58a6ff">Verify on Investing.com ↗</a>`
+      + ` · <a href="https://ir.eia.gov/ngs/ngs.html" target="_blank" style="color:#58a6ff">EIA ↗</a>`;
     sta.style.color = '#d29922';
   }
 
