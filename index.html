@@ -966,18 +966,21 @@ const EIA_STORE = 'ng_eia_live_v4';
 
 // ── Confirmed seed — fallback if GitHub fetch fails ─────────────
 const COT_SEED = [
-  { reportDate:'2026-05-13', oi:7980000, mm_l:580000, mm_s:225000, mm_net:355000, mm_net_chg:null,
-    sd_l:810000, sd_s:3280000, sd_net:-2470000, sd_net_chg:null,
-    pm_l:4500000, pm_s:2280000, pm_net:2220000, chg_oi:null, chg_mm_l:null, chg_mm_s:null },
-  { reportDate:'2026-05-20', oi:8020000, mm_l:590000, mm_s:222000, mm_net:368000, mm_net_chg:13000,
-    sd_l:818000, sd_s:3295000, sd_net:-2477000, sd_net_chg:-7000,
-    pm_l:4540000, pm_s:2290000, pm_net:2250000, chg_oi:40000, chg_mm_l:10000, chg_mm_s:-3000 },
-  { reportDate:'2026-05-27', oi:8075218, mm_l:596721, mm_s:219825, mm_net:376896, mm_net_chg:8896,
-    sd_l:824745, sd_s:3324439, sd_net:-2499694, sd_net_chg:-22694,
-    pm_l:4633554, pm_s:2363670, pm_net:2269884, chg_oi:55218, chg_mm_l:6721, chg_mm_s:-2175 },
-  { reportDate:'2026-06-03', oi:7776410, mm_l:601393, mm_s:202202, mm_net:399191, mm_net_chg:22295,
-    sd_l:819888, sd_s:3202210, sd_net:-2382322, sd_net_chg:117372,
-    pm_l:4354778, pm_s:2312080, pm_net:2042698, chg_oi:-298808, chg_mm_l:4672, chg_mm_s:-17623 },
+  { reportDate:'2026-05-19', oi:8023397, mm_l:579756, mm_s:195777, mm_net:383979, mm_net_chg:null,
+    sd_l:811688, sd_s:3296354, sd_net:-2484666, sd_net_chg:null,
+    pm_l:4545572, pm_s:2421291, pm_net:2124281, chg_oi:40188, chg_mm_l:-13032, chg_mm_s:-1056 },
+  { reportDate:'2026-05-26', oi:8075272, mm_l:596721, mm_s:219825, mm_net:376896, mm_net_chg:-7083,
+    sd_l:824745, sd_s:3324386, sd_net:-2499641, sd_net_chg:-14975,
+    pm_l:4633554, pm_s:2363670, pm_net:2269884, chg_oi:51875, chg_mm_l:16965, chg_mm_s:24048 },
+  { reportDate:'2026-06-02', oi:7776667, mm_l:601393, mm_s:202202, mm_net:399191, mm_net_chg:22295,
+    sd_l:819888, sd_s:3201954, sd_net:-2382066, sd_net_chg:117575,
+    pm_l:4354778, pm_s:2312080, pm_net:2042698, chg_oi:-298605, chg_mm_l:4672, chg_mm_s:-17623 },
+  { reportDate:'2026-06-09', oi:7865899, mm_l:608974, mm_s:226325, mm_net:382649, mm_net_chg:-16542,
+    sd_l:831096, sd_s:3226313, sd_net:-2395217, sd_net_chg:-13151,
+    pm_l:4435712, pm_s:2320050, pm_net:2115662, chg_oi:89233, chg_mm_l:7581, chg_mm_s:24123 },
+  { reportDate:'2026-06-16', oi:7985975, mm_l:596068, mm_s:243886, mm_net:352182, mm_net_chg:-30467,
+    sd_l:847351, sd_s:3260927, sd_net:-2413576, sd_net_chg:-18359,
+    pm_l:4507783, pm_s:2352496, pm_net:2155287, chg_oi:120075, chg_mm_l:-12906, chg_mm_s:17561 },
 ];
 
 let cotHistory = [];
@@ -1032,54 +1035,113 @@ async function fetchCOT() {
   const sta = document.getElementById('cotStatus');
   btn.disabled = true;
   sta.className = 'cot-status';
+  sta.textContent = 'Fetching live from CFTC API…';
 
-  // Check if GitHub username is configured
-  if (GITHUB_USER === 'YOUR_GITHUB_USERNAME') {
-    sta.className = 'cot-status err';
-    sta.innerHTML = `⚙️ Setup needed — set your GitHub username in the dashboard file. `
-      + `<a href="https://github.com/new" target="_blank" style="color:#58a6ff">Create repo ↗</a>`;
-    showCOTManualPanel();
-    btn.disabled = false;
-    return;
-  }
+  // CFTC Public Reporting API (Socrata) — Disaggregated Combined dataset.
+  // Confirmed working, no API key required, supports CORS for browser fetch.
+  // Dataset: kh3c-gbw2 · Contract: NAT GAS ICE LD1 · Code: 023391
+  const COT_ENDPOINT = `https://publicreporting.cftc.gov/resource/kh3c-gbw2.json`
+    + `?cftc_contract_market_code=023391`
+    + `&$order=report_date_as_yyyy_mm_dd%20DESC`
+    + `&$limit=10`;
 
-  sta.textContent = 'Fetching from GitHub…';
+  let loaded = false;
 
   try {
-    // Fetch JSON from GitHub raw — CORS-friendly, always works
-    const cacheBust = `?t=${Date.now()}`;
     const resp = await Promise.race([
-      fetch(COT_GITHUB_URL + cacheBust),
-      new Promise((_,rej) => setTimeout(()=>rej(new Error('GitHub timeout after 10s')), 10000))
+      fetch(COT_ENDPOINT, { headers: { 'Accept': 'application/json' } }),
+      new Promise((_,rej) => setTimeout(()=>rej(new Error('CFTC API timeout')), 12000))
     ]);
+    if (!resp.ok) throw new Error(`CFTC API HTTP ${resp.status}`);
+    const rows = await resp.json();
+    if (!Array.isArray(rows) || rows.length < 1) throw new Error('CFTC API returned no data');
 
-    if (!resp.ok) throw new Error(`GitHub fetch HTTP ${resp.status}`);
-    const data = await resp.json();
-    const history = data?.history;
-    if (!history || !history.length) throw new Error('Empty history in GitHub JSON');
+    const n = v => Math.round(parseFloat(v)) || 0;
+    const fresh = rows.map(r => {
+      const reportDate = r.report_date_as_yyyy_mm_dd.slice(0,10);
+      const oi    = n(r.open_interest_all);
+      const mm_l  = n(r.m_money_positions_long_all),  mm_s = n(r.m_money_positions_short_all);
+      const sd_l  = n(r.swap_positions_long_all),     sd_s = n(r.swap__positions_short_all);
+      const pm_l  = n(r.prod_merc_positions_long),    pm_s = n(r.prod_merc_positions_short);
+      return {
+        reportDate, oi, mm_l, mm_s, sd_l, sd_s, pm_l, pm_s,
+        mm_net: mm_l - mm_s, sd_net: sd_l - sd_s, pm_net: pm_l - pm_s,
+        chg_oi:   n(r.change_in_open_interest_all),
+        chg_mm_l: n(r.change_in_m_money_long_all), chg_mm_s: n(r.change_in_m_money_short_all),
+        chg_sd_l: n(r.change_in_swap_long_all),    chg_sd_s: n(r.change_in_swap_short_all),
+        chg_pm_l: n(r.change_in_prod_merc_long),   chg_pm_s: n(r.change_in_prod_merc_short),
+      };
+    }).reverse(); // oldest -> newest
 
-    // Merge with existing — deduplicate by reportDate
+    // Compute mm_net_chg / sd_net_chg from consecutive rows (more accurate than raw change fields,
+    // since CFTC's "change" fields already match week-over-week net deltas, but we recompute
+    // to guarantee internal consistency with whatever was previously stored)
+    for (let i = 1; i < fresh.length; i++) {
+      fresh[i].mm_net_chg = fresh[i].mm_net - fresh[i-1].mm_net;
+      fresh[i].sd_net_chg = fresh[i].sd_net - fresh[i-1].sd_net;
+    }
+    if (fresh.length > 0 && fresh[0].mm_net_chg === undefined) {
+      fresh[0].mm_net_chg = fresh[0].chg_mm_l - fresh[0].chg_mm_s;
+      fresh[0].sd_net_chg = fresh[0].chg_sd_l - fresh[0].chg_sd_s;
+    }
+
+    // Merge with whatever's already stored, dedupe by reportDate, keep last 8 weeks
     const byDate = {};
-    [...cotHistory, ...history].forEach(r => { byDate[r.reportDate] = r; });
-    cotHistory = Object.values(byDate).sort((a,b) => a.reportDate.localeCompare(b.reportDate));
+    [...cotHistory, ...fresh].forEach(r => { byDate[r.reportDate] = r; });
+    cotHistory = Object.values(byDate).sort((a,b) => a.reportDate.localeCompare(b.reportDate)).slice(-8);
     cotSave(cotHistory);
 
     const lat = cotHistory[cotHistory.length-1];
+    const posDate = new Date(lat.reportDate + 'T00:00:00Z');
+    const relStr = new Date(posDate.getTime() + 3*86400000)
+      .toLocaleDateString('en-US', { month:'short', day:'numeric' });
     sta.className = 'cot-status ok';
-    sta.textContent = `✅ Live — ${lat.reportDate} · MM Net ${lat.mm_net > 0 ? '+' : ''}${Math.round(lat.mm_net/1000)}K`;
+    sta.textContent = `✅ CFTC API (live) — positions as of ${lat.reportDate} (released ${relStr})`;
     renderCOT();
-    renderCOT4Week(cotHistory);
+    loaded = true;
 
   } catch(err) {
-    console.warn('COT GitHub fetch failed:', err.message);
-    // Fall through to manual panel
-    sta.className = 'cot-status err';
-    sta.innerHTML = `⚡ ${err.message} · Showing seed data · `;
-    if (GITHUB_USER !== 'YOUR_GITHUB_USERNAME') {
-      sta.innerHTML += `<a href="${COT_GITHUB_URL}" target="_blank" style="color:#58a6ff">Check feed ↗</a>`;
+    console.warn('CFTC API fetch failed:', err.message);
+    window._lastCotApiError = err.message;
+  }
+
+  // ── Fallback: GitHub feed (only if configured and API failed) ──
+  if (!loaded && GITHUB_USER !== 'YOUR_GITHUB_USERNAME') {
+    try {
+      sta.textContent = 'CFTC API unavailable — trying GitHub feed…';
+      const cacheBust = `?t=${Date.now()}`;
+      const resp = await Promise.race([
+        fetch(COT_GITHUB_URL + cacheBust),
+        new Promise((_,rej) => setTimeout(()=>rej(new Error('GitHub timeout after 10s')), 10000))
+      ]);
+      if (!resp.ok) throw new Error(`GitHub fetch HTTP ${resp.status}`);
+      const data = await resp.json();
+      const history = data?.history;
+      if (!history || !history.length) throw new Error('Empty history in GitHub JSON');
+
+      const byDate = {};
+      [...cotHistory, ...history].forEach(r => { byDate[r.reportDate] = r; });
+      cotHistory = Object.values(byDate).sort((a,b) => a.reportDate.localeCompare(b.reportDate));
+      cotSave(cotHistory);
+
+      const lat = cotHistory[cotHistory.length-1];
+      sta.className = 'cot-status ok';
+      sta.textContent = `⚠️ GitHub feed (may be stale) — ${lat.reportDate}`;
+      sta.style.color = '#d29922';
+      renderCOT();
+      loaded = true;
+    } catch(err) {
+      console.warn('COT GitHub fetch failed:', err.message);
     }
+  }
+
+  if (!loaded) {
+    sta.className = 'cot-status err';
+    const apiErrMsg = window._lastCotApiError ? ` (${window._lastCotApiError})` : '';
+    sta.innerHTML = `⚡ Live fetch unavailable${apiErrMsg} · Showing cached/seed data`;
     showCOTManualPanel();
   }
+
   btn.disabled = false;
 }
 
@@ -1383,13 +1445,12 @@ function renderCOT() {
     </tr>`;
   }).join('');
 
-  // Update status with position date + release date
-  const latestPosDate = new Date(d.reportDate + 'T00:00:00Z');
-  const latestRelDate  = new Date(latestPosDate.getTime() + 3*86400000);
-  const latestRelStr   = latestRelDate.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-  document.getElementById('cotStatus').className = 'cot-status ok';
-  document.getElementById('cotStatus').textContent = '✓ Positions as of ' + d.reportDate + ' (released ' + latestRelStr + ')';
+  // NOTE: status text is intentionally NOT set here — renderCOT() only
+  // renders data. The caller (fetchCOT, or page-load init) owns the
+  // status message, since it knows whether this came from a live fetch,
+  // a fallback, or a cache load, and renderCOT() must not clobber that.
 }
+
 
 function mmSignalCOT(d) {
   const chg = (d.chg_mm_l||0) - (d.chg_mm_s||0);
@@ -1407,9 +1468,18 @@ function mmSignalCOT(d) {
   cotHistory = stored && stored.length ? stored : [...COT_SEED];
   if (!stored) cotSave(cotHistory);  // persist seed for next load
   if (cotHistory.length) renderCOT();
-  document.getElementById('cotStatus').textContent =
-    cotHistory.length ? '✓ ' + cotHistory[cotHistory.length-1].reportDate + ' (cached)' : 'No data loaded';
-  document.getElementById('cotStatus').className = cotHistory.length ? 'cot-status ok' : 'cot-status';
+  if (cotHistory.length) {
+    const lat = cotHistory[cotHistory.length-1];
+    const posDate = new Date(lat.reportDate + 'T00:00:00Z');
+    const relStr = new Date(posDate.getTime() + 3*86400000)
+      .toLocaleDateString('en-US', { month:'short', day:'numeric' });
+    document.getElementById('cotStatus').textContent =
+      '✓ Positions as of ' + lat.reportDate + ' (released ' + relStr + ') — cached';
+    document.getElementById('cotStatus').className = 'cot-status ok';
+  } else {
+    document.getElementById('cotStatus').textContent = 'No data loaded';
+    document.getElementById('cotStatus').className = 'cot-status';
+  }
 })();
 
 // ════════════════════════════════════════════════════════════════
