@@ -1753,7 +1753,7 @@ async function fetchEIA() {
     }
     const EIA_ENDPOINT = `https://api.eia.gov/v2/natural-gas/stor/wkly/data/`
       + `?api_key=${EIA_API_KEY}&frequency=weekly&data[0]=value`
-      + `&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=8&facets[series][]=NW2`;
+      + `&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=8&facets[series][]=NW2_EPG0_SWO_R48_BCF`;
 
     const resp = await Promise.race([
       fetch(EIA_ENDPOINT, { headers:{ 'Accept':'application/json' } }),
