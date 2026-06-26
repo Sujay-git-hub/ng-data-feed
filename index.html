@@ -878,7 +878,7 @@
   <div class="schedule-box">
     <div class="icon">⏰</div>
     <div>
-      <strong>Auto-fetch schedule:</strong> EIA data fetches automatically every <strong>Thursday after 8:05 PM IST</strong>. COT data fetches every <strong>Friday after 2:05 AM IST</strong>. Both are attempted once per day and cached in your browser. If live fetch fails, confirmed seed data is shown (updated manually each week). Click <strong>Refresh</strong> to force a fetch at any time. Latest confirmed EIA: <strong>+76 Bcf — week ending Jun 19, 2026</strong> · Storage 2,835 Bcf · 151 Bcf above 5yr avg · <span style="color:#f85149;font-weight:600">Strong Bearish</span> · Verify at <a href="https://in.investing.com/economic-calendar/natural-gas-storage-386" target="_blank" style="color:#58a6ff">Investing.com Economic Calendar ↗</a>
+      <strong>Auto-fetch schedule:</strong> EIA data fetches automatically every <strong>Thursday after 8:05 PM IST</strong>. COT data fetches every <strong>Friday after 2:05 AM IST</strong>. Both are attempted once per day and cached in your browser. If live fetch fails, confirmed seed data is shown (updated manually each week). Click <strong>Refresh</strong> to force a fetch at any time. Latest confirmed EIA: <strong>+76 Bcf — week ending Jun 19, 2026</strong> (released Jun 25) · Storage 2,835 Bcf · 151 Bcf above 5yr avg · <span style="color:#f85149;font-weight:600">Strong Bearish</span> · Verify at <a href="https://in.investing.com/economic-calendar/natural-gas-storage-386" target="_blank" style="color:#58a6ff">Investing.com Economic Calendar ↗</a>
     </div>
   </div>
 
@@ -1617,9 +1617,14 @@ function renderEIA(rows) {
     const vsYA = d.yearAgo ? (d.value - d.yearAgo) : null;
     const chgColor = d.change >= 0 ? '#e3b341' : '#79c0ff';
     const label = i===data.length-1 ? '(latest)' : (data.length-1-i)+'w ago';
+    // EIA always releases data 6 days after the week-ending date (Friday -> Thursday)
+    const weekEndDate = new Date(d.period + 'T00:00:00Z');
+    const releaseDate = new Date(weekEndDate.getTime() + 6*86400000);
+    const releaseStr = releaseDate.toLocaleDateString('en-US', { month:'short', day:'numeric' });
     cardDiv.innerHTML += `
     <div class="eia-live-card ${sig.cls}">
-      <div class="elc-date">${d.period} <span style="color:#8b949e;font-size:10px">${label}</span></div>
+      <div class="elc-date">Week of ${d.period} <span style="color:#8b949e;font-size:10px">${label}</span></div>
+      <div style="font-size:10px;color:#6e7681;margin-top:-4px;margin-bottom:6px">Released ${releaseStr}</div>
       <div class="elc-change" style="color:${chgColor}">${d.change>0?'+':''}${d.change} Bcf</div>
       <div class="elc-label">${d.season} · Net weekly change</div>
       <div class="elc-vs">
