@@ -910,7 +910,8 @@
       <table class="heatmap" id="eiaLiveTable" style="min-width:700px;">
         <thead>
           <tr>
-            <th>Report Week</th>
+            <th>Week Ending</th>
+            <th>Released</th>
             <th>Net Change (Bcf)</th>
             <th>Total Storage (Bcf)</th>
             <th>vs 5-Yr Avg</th>
@@ -1646,8 +1647,12 @@ function renderEIA(rows) {
       const diffPct = d.avg5yr>0?((diff/d.avg5yr)*100).toFixed(1):0;
       const vsYA = d.yearAgo ? (d.value-d.yearAgo) : null;
       const diffCol = diff>80?'#f85149':diff<-80?'#3fb950':'#d29922';
+      const weekEndDate2 = new Date(d.period + 'T00:00:00Z');
+      const releaseDate2 = new Date(weekEndDate2.getTime() + 6*86400000);
+      const releaseStr2 = releaseDate2.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
       tbodyEl.innerHTML += `<tr>
         <td style="text-align:left;font-weight:700;color:#f0f6fc">${d.period}${i===data.length-1?' <span style="color:#58a6ff;font-size:10px">●</span>':''}</td>
+        <td style="color:#8b949e;font-size:11px">${releaseStr2}</td>
         <td style="font-weight:700;color:${d.change>=0?'#e3b341':'#79c0ff'}">${d.change>0?'+':''}${d.change} Bcf</td>
         <td style="font-weight:700">${d.value.toLocaleString()}</td>
         <td style="font-weight:700;color:${diffCol}">${diff>0?'+':''}${diff} Bcf (${diffPct}%)</td>
