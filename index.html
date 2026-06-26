@@ -764,7 +764,7 @@
       </tr>
     </table>
     <div class="note" style="margin-top:12px;">
-      <strong>Key COT signals for MCX NG:</strong> Released every <strong>Friday 2 AM IST</strong> (reflects Tuesday positions). Use it as a weekly sentiment check. When Managed Money is at a multi-year net-short extreme AND the seasonal is bullish (Oct–Jan) = highest probability long setup. When MM is at net-long extreme AND seasonal is bearish (Apr–Aug) = highest probability short. It's the positioning confirmation layer on top of seasonal bias.
+      <strong>Key COT signals for MCX NG:</strong> Released every <strong>Saturday ~1 AM IST</strong> (Fri 3:30PM ET, reflects Tuesday positions). Use it as a weekly sentiment check. When Managed Money is at a multi-year net-short extreme AND the seasonal is bullish (Oct–Jan) = highest probability long setup. When MM is at net-long extreme AND seasonal is bearish (Apr–Aug) = highest probability short. It's the positioning confirmation layer on top of seasonal bias.
     </div>
   </div>
 
@@ -848,7 +848,8 @@
       <table class="cot-hist-tbl">
         <thead>
           <tr>
-            <th class="lh">Report Date</th>
+            <th class="lh">Position Date</th>
+            <th>Released</th>
             <th>Open Interest</th>
             <th>MM Long</th><th>MM Short</th>
             <th class="pos">MM Net</th><th>MM Net Δ</th>
@@ -878,7 +879,7 @@
   <div class="schedule-box">
     <div class="icon">⏰</div>
     <div>
-      <strong>Auto-fetch schedule:</strong> EIA data fetches automatically every <strong>Thursday after 8:05 PM IST</strong>. COT data fetches every <strong>Friday after 2:05 AM IST</strong>. Both are attempted once per day and cached in your browser. If live fetch fails, confirmed seed data is shown (updated manually each week). Click <strong>Refresh</strong> to force a fetch at any time. Latest confirmed EIA: <strong>+76 Bcf — week ending Jun 19, 2026</strong> (released Jun 25) · Storage 2,835 Bcf · 151 Bcf above 5yr avg · <span style="color:#f85149;font-weight:600">Strong Bearish</span> · Verify at <a href="https://in.investing.com/economic-calendar/natural-gas-storage-386" target="_blank" style="color:#58a6ff">Investing.com Economic Calendar ↗</a>
+      <strong>Auto-fetch schedule:</strong> EIA data fetches automatically every <strong>Thursday after 8:05 PM IST</strong>. COT data fetches every <strong>Saturday after 1:30 AM IST</strong> (CFTC releases Fridays 3:30 PM ET = Sat 1:00 AM IST). Both are attempted once per day and cached in your browser. If live fetch fails, confirmed seed data is shown (updated manually each week). Click <strong>Refresh</strong> to force a fetch at any time. Latest confirmed EIA: <strong>+76 Bcf — week ending Jun 19, 2026</strong> (released Jun 25) · Storage 2,835 Bcf · 151 Bcf above 5yr avg · <span style="color:#f85149;font-weight:600">Strong Bearish</span> · Verify at <a href="https://in.investing.com/economic-calendar/natural-gas-storage-386" target="_blank" style="color:#58a6ff">Investing.com Economic Calendar ↗</a>
     </div>
   </div>
 
@@ -1148,7 +1149,7 @@ function showCOTManualPanel() {
       <div style="font-size:11px;color:#8b949e">
         Data from: 
         <a href="https://www.cftc.gov/dea/futures/nat_gas_lf.htm" target="_blank" style="color:#58a6ff;text-decoration:none">CFTC NG Futures ↗</a>
-        · Released every Friday ~1:30 AM IST
+        · Released every Saturday ~1:00 AM IST (Fri 3:30 PM ET)
       </div>
     </div>
     <div id="cotManualMsg" style="margin-top:8px;font-size:12px;display:none"></div>
@@ -1362,8 +1363,13 @@ function renderCOT() {
   document.getElementById('cotHistBody').innerHTML = sorted.map((r, i) => {
     const isLatest = i === 0;
     const sig = mmSignalCOT(r);
+    // CFTC releases COT every Friday, covering positions as of the prior Tuesday (3-day lag)
+    const posDate = new Date(r.reportDate + 'T00:00:00Z');
+    const relDate  = new Date(posDate.getTime() + 3*86400000);
+    const relStr   = relDate.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
     return `<tr ${isLatest ? 'style="background:#1c2128"' : ''}>
       <td class="lh">${r.reportDate}${isLatest ? ' <span style="font-size:9px;background:#1f3a5f;color:#79c0ff;padding:1px 6px;border-radius:10px">LATEST</span>' : ''}</td>
+      <td style="color:#8b949e;font-size:11px">${relStr}</td>
       <td>${fmt(r.oi)}</td>
       <td>${fmt(r.mm_l)}</td>
       <td>${fmt(r.mm_s)}</td>
@@ -1377,9 +1383,12 @@ function renderCOT() {
     </tr>`;
   }).join('');
 
-  // Update status with report date
+  // Update status with position date + release date
+  const latestPosDate = new Date(d.reportDate + 'T00:00:00Z');
+  const latestRelDate  = new Date(latestPosDate.getTime() + 3*86400000);
+  const latestRelStr   = latestRelDate.toLocaleDateString('en-US', { month:'short', day:'numeric' });
   document.getElementById('cotStatus').className = 'cot-status ok';
-  document.getElementById('cotStatus').textContent = '✓ ' + d.reportDate;
+  document.getElementById('cotStatus').textContent = '✓ Positions as of ' + d.reportDate + ' (released ' + latestRelStr + ')';
 }
 
 function mmSignalCOT(d) {
@@ -1939,7 +1948,7 @@ function renderCOT4Week(rows) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// AUTO-SCHEDULE (Thursday EIA · Friday COT)
+// AUTO-SCHEDULE (Thursday EIA · Saturday COT)
 // ════════════════════════════════════════════════════════════════
 function scheduleAutoFetches() {
   const now = new Date();
@@ -1955,8 +1964,8 @@ function scheduleAutoFetches() {
     }
   }
 
-  // Fri after 02:05 IST → auto-fetch COT
-  if (day===5 && (h>2||(h===2&&m>=5))) {
+  // Sat after 01:30 IST → auto-fetch COT (CFTC releases Fri 3:30PM ET = Sat 1:00AM IST)
+  if (day===6 && (h>1||(h===1&&m>=30))) {
     const key='cot_auto_'+ist.toDateString();
     if (!localStorage.getItem(key) && typeof fetchCOT==='function') {
       localStorage.setItem(key,'1');
