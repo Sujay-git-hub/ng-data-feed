@@ -1,19 +1,8 @@
 {
-  "updated": "2026-07-18T00:12:40Z",
+  "updated": "2026-07-23T18:53:13Z",
   "source": "EIA Weekly Natural Gas Storage Report (NW2 \u2014 Lower 48)",
-  "latestDate": "2026-07-10",
+  "latestDate": "2026-07-17",
   "history": [
-    {
-      "period": "2026-05-15",
-      "value": 2391,
-      "change": 101,
-      "avg5yr": 2240,
-      "yearAgo": 2375,
-      "season": "Injection",
-      "vsAvg": 151,
-      "vsAvgPct": 6.7,
-      "vsYearAgo": 16
-    },
     {
       "period": "2026-05-16",
       "value": 2391,
@@ -134,6 +123,17 @@
       "vsAvg": 94,
       "vsAvgPct": 3.2,
       "vsYearAgo": -28
+    },
+    {
+      "period": "2026-07-17",
+      "value": 3056,
+      "change": 32,
+      "avg5yr": 2990,
+      "yearAgo": 3075,
+      "season": "Injection",
+      "vsAvg": 66,
+      "vsAvgPct": 2.2,
+      "vsYearAgo": -19
     }
   ]
 }
