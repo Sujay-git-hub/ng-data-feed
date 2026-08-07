@@ -1,7 +1,7 @@
 {
-  "updated": "2026-07-31T22:14:33Z",
+  "updated": "2026-08-07T20:53:58Z",
   "source": "CFTC Disaggregated Futures (023391 NAT GAS ICE LD1)",
-  "latestDate": "2026-07-28",
+  "latestDate": "2026-08-04",
   "history": [
     {
       "reportDate": "2026-05-13",
@@ -194,6 +194,26 @@
       "pm_net": 2218271,
       "mm_net_chg": -9839,
       "sd_net_chg": -6892
+    },
+    {
+      "reportDate": "2026-08-04",
+      "oi": 7798054,
+      "pm_l": 4425549,
+      "pm_s": 2338898,
+      "sd_l": 799093,
+      "sd_s": 2948478,
+      "mm_l": 619805,
+      "mm_s": 461700,
+      "chg_oi": 0,
+      "chg_mm_l": 0,
+      "chg_mm_s": 0,
+      "chg_sd_l": 0,
+      "chg_sd_s": 0,
+      "mm_net": 158105,
+      "sd_net": -2149385,
+      "pm_net": 2086651,
+      "mm_net_chg": -29925,
+      "sd_net_chg": 147844
     }
   ]
 }
