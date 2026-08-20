@@ -1,19 +1,8 @@
 {
-  "updated": "2026-08-13T17:06:34Z",
+  "updated": "2026-08-20T15:46:18Z",
   "source": "EIA Weekly Natural Gas Storage Report (NW2 \u2014 Lower 48)",
-  "latestDate": "2026-08-07",
+  "latestDate": "2026-08-14",
   "history": [
-    {
-      "period": "2026-05-29",
-      "value": 2578,
-      "change": 95,
-      "avg5yr": 2440,
-      "yearAgo": 2598,
-      "season": "Injection",
-      "vsAvg": 138,
-      "vsAvgPct": 5.7,
-      "vsYearAgo": -20
-    },
     {
       "period": "2026-05-30",
       "value": 2578,
@@ -30,110 +19,110 @@
       "value": 2686,
       "change": 108,
       "avg5yr": 2537,
-      "yearAgo": 2707,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 149,
-      "vsAvgPct": 5.9,
-      "vsYearAgo": -21
+      "vsAvgPct": 5.9
     },
     {
       "period": "2026-06-12",
       "value": 2759,
       "change": 73,
       "avg5yr": 2625,
-      "yearAgo": 2802,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 134,
-      "vsAvgPct": 5.1,
-      "vsYearAgo": -43
+      "vsAvgPct": 5.1
     },
     {
       "period": "2026-06-19",
       "value": 2835,
       "change": 76,
       "avg5yr": 2710,
-      "yearAgo": 2898,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 125,
-      "vsAvgPct": 4.6,
-      "vsYearAgo": -63
+      "vsAvgPct": 4.6
     },
     {
       "period": "2026-06-26",
       "value": 2922,
       "change": 87,
       "avg5yr": 2790,
-      "yearAgo": 2953,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 132,
-      "vsAvgPct": 4.7,
-      "vsYearAgo": -31
+      "vsAvgPct": 4.7
     },
     {
       "period": "2026-07-03",
       "value": 2983,
       "change": 61,
       "avg5yr": 2865,
-      "yearAgo": 3006,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 118,
-      "vsAvgPct": 4.1,
-      "vsYearAgo": -23
+      "vsAvgPct": 4.1
     },
     {
       "period": "2026-07-10",
       "value": 3024,
       "change": 41,
       "avg5yr": 2930,
-      "yearAgo": 3052,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 94,
-      "vsAvgPct": 3.2,
-      "vsYearAgo": -28
+      "vsAvgPct": 3.2
     },
     {
       "period": "2026-07-17",
       "value": 3056,
       "change": 32,
       "avg5yr": 2990,
-      "yearAgo": 3075,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 66,
-      "vsAvgPct": 2.2,
-      "vsYearAgo": -19
+      "vsAvgPct": 2.2
     },
     {
       "period": "2026-07-24",
       "value": 3084,
       "change": 28,
       "avg5yr": 3045,
-      "yearAgo": 3123,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 39,
-      "vsAvgPct": 1.3,
-      "vsYearAgo": -39
+      "vsAvgPct": 1.3
     },
     {
       "period": "2026-07-31",
       "value": 3117,
       "change": 33,
       "avg5yr": 3090,
-      "yearAgo": 3130,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 27,
-      "vsAvgPct": 0.9,
-      "vsYearAgo": -13
+      "vsAvgPct": 0.9
     },
     {
       "period": "2026-08-07",
       "value": 3153,
       "change": 36,
       "avg5yr": 3130,
-      "yearAgo": 3186,
+      "yearAgo": null,
       "season": "Injection",
       "vsAvg": 23,
-      "vsAvgPct": 0.7,
-      "vsYearAgo": -33
+      "vsAvgPct": 0.7
+    },
+    {
+      "period": "2026-08-14",
+      "value": 3169,
+      "change": 16,
+      "avg5yr": 3165,
+      "yearAgo": null,
+      "season": "Injection",
+      "vsAvg": 4,
+      "vsAvgPct": 0.1
     }
   ]
 }
