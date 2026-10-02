@@ -1,28 +1,8 @@
 {
-  "updated": "2026-09-25T23:56:04Z",
+  "updated": "2026-10-02T23:43:55Z",
   "source": "CFTC Disaggregated Futures (023391 NAT GAS ICE LD1)",
-  "latestDate": "2026-09-22",
+  "latestDate": "2026-09-29",
   "history": [
-    {
-      "reportDate": "2026-07-07",
-      "oi": 7782336,
-      "pm_l": 4398003,
-      "pm_s": 2353005,
-      "sd_l": 827145,
-      "sd_s": 3116470,
-      "mm_l": 597847,
-      "mm_s": 318759,
-      "chg_oi": 0,
-      "chg_mm_l": 0,
-      "chg_mm_s": 0,
-      "chg_sd_l": 0,
-      "chg_sd_s": 0,
-      "mm_net": 279088,
-      "sd_net": -2289325,
-      "pm_net": 2044998,
-      "mm_net_chg": -51189,
-      "sd_net_chg": 158608
-    },
     {
       "reportDate": "2026-07-14",
       "oi": 7918011,
@@ -242,6 +222,26 @@
       "pm_net": 2080205,
       "mm_net_chg": -28933,
       "sd_net_chg": -52888
+    },
+    {
+      "reportDate": "2026-09-29",
+      "oi": 7686828,
+      "pm_l": 4313688,
+      "pm_s": 2309448,
+      "sd_l": 850036,
+      "sd_s": 2940647,
+      "mm_l": 635736,
+      "mm_s": 418764,
+      "chg_oi": 0,
+      "chg_mm_l": 0,
+      "chg_mm_s": 0,
+      "chg_sd_l": 0,
+      "chg_sd_s": 0,
+      "mm_net": 216972,
+      "sd_net": -2090611,
+      "pm_net": 2004240,
+      "mm_net_chg": 56204,
+      "sd_net_chg": 99382
     }
   ]
 }
