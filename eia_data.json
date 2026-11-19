@@ -1,30 +1,8 @@
 {
-  "updated": "2026-11-12T22:11:29Z",
+  "updated": "2026-11-19T22:38:51Z",
   "source": "EIA Weekly Natural Gas Storage Report (NW2 \u2014 Lower 48)",
-  "latestDate": "2026-10-30",
+  "latestDate": "2026-11-13",
   "history": [
-    {
-      "period": "2026-08-14",
-      "value": 3169,
-      "change": 16,
-      "avg5yr": 3165,
-      "yearAgo": 3199,
-      "season": "Injection",
-      "vsAvg": 4,
-      "vsAvgPct": 0.1,
-      "vsYearAgo": -30
-    },
-    {
-      "period": "2026-08-21",
-      "value": 3184,
-      "change": 15,
-      "avg5yr": 3195,
-      "yearAgo": 3217,
-      "season": "Injection",
-      "vsAvg": -11,
-      "vsAvgPct": -0.3,
-      "vsYearAgo": -33
-    },
     {
       "period": "2026-08-28",
       "value": 3214,
@@ -134,6 +112,28 @@
       "vsAvg": 581,
       "vsAvgPct": 18.0,
       "vsYearAgo": -104
+    },
+    {
+      "period": "2026-11-06",
+      "value": 3862,
+      "change": 61,
+      "avg5yr": 3170,
+      "yearAgo": 3950,
+      "season": "Withdrawal",
+      "vsAvg": 692,
+      "vsAvgPct": 21.8,
+      "vsYearAgo": -88
+    },
+    {
+      "period": "2026-11-13",
+      "value": 3882,
+      "change": 20,
+      "avg5yr": 3105,
+      "yearAgo": 3936,
+      "season": "Withdrawal",
+      "vsAvg": 777,
+      "vsAvgPct": 25.0,
+      "vsYearAgo": -54
     }
   ]
 }
